@@ -2,6 +2,20 @@
 
 This project is a minimal, from-scratch patient intake voice agent inspired by [Pipecat's patient-intake repo](https://github.com/pipecat-ai/pipecat/tree/main/examples/patient-intake).
 
+## Features
+- **Hybrid LLM/State Machine Intake Flow:**
+  - Uses OpenAI's function calling API to let the LLM drive the conversation and call backend functions to store structured data (birthday, prescriptions, allergies, conditions, visit reasons).
+  - Backend stores all collected data in a session and guides the LLM with a system prompt and function schemas.
+- **Gradio Frontend:**
+  - Modern web UI for interacting with the agent via text (and microphone UI for future voice support).
+  - Displays both the agent's reply and the structured intake data in real time.
+- **FastAPI Backend:**
+  - Handles chat requests, session management, and OpenAI API calls.
+- **.env Support:**
+  - Uses `python-dotenv` to load your OpenAI API key from a `.env` file.
+
+---
+
 ## Quick Start
 
 ### Prerequisites
@@ -26,118 +40,64 @@ This project is a minimal, from-scratch patient intake voice agent inspired by [
    uv pip install -r siva/requirements.txt
    ```
 
-4. **Set up environment variables (optional):**
-   ```bash
-   export OPENAI_API_KEY="your-openai-api-key"
-   ```
+4. **Set up environment variables:**
+   - Create a `.env` file in the `siva/` directory (or project root) with:
+     ```
+     OPENAI_API_KEY=sk-...your-key-here...
+     ```
 
-5. **Run the server:**
-   ```bash
-   uvicorn siva.main:app --reload
-   ```
+---
 
+## Running the Server
+
+### Start the FastAPI Backend
+```bash
+uvicorn siva.main:app --reload
+```
 The server will start at `http://127.0.0.1:8000`
 
-### API Testing with curl
-
-#### 1. Check if the server is running:
+### Start the Gradio Frontend
 ```bash
-curl http://127.0.0.1:8000/
+python siva/gradio_frontend.py
 ```
-
-#### 2. Test the intake state machine:
-
-**Start a new session (intro step):**
-```bash
-curl -X POST http://127.0.0.1:8000/chat \
-  -H "Content-Type: application/json" \
-  -d '{"session_id": "test-session-1", "message": ""}'
-```
-
-**Verify birthday (provide correct birthday):**
-```bash
-curl -X POST http://127.0.0.1:8000/chat \
-  -H "Content-Type: application/json" \
-  -d '{"session_id": "test-session-1", "message": "My birthday is 1983-01-01"}'
-```
-
-**List prescriptions:**
-```bash
-curl -X POST http://127.0.0.1:8000/chat \
-  -H "Content-Type: application/json" \
-  -d '{"session_id": "test-session-1", "message": "I take Lisinopril 10mg daily and Metformin 500mg twice daily"}'
-```
-
-**List symptoms:**
-```bash
-curl -X POST http://127.0.0.1:8000/chat \
-  -H "Content-Type: application/json" \
-  -d '{"session_id": "test-session-1", "message": "I have been experiencing headaches and fatigue"}'
-```
-
-**List allergies:**
-```bash
-curl -X POST http://127.0.0.1:8000/chat \
-  -H "Content-Type: application/json" \
-  -d '{"session_id": "test-session-1", "message": "I am allergic to penicillin"}'
-```
-
-#### 3. Test with wrong birthday (should prompt again):
-```bash
-curl -X POST http://127.0.0.1:8000/chat \
-  -H "Content-Type: application/json" \
-  -d '{"session_id": "test-session-2", "message": ""}'
-
-curl -X POST http://127.0.0.1:8000/chat \
-  -H "Content-Type: application/json" \
-  -d '{"session_id": "test-session-2", "message": "My birthday is 1990-05-15"}'
-```
-
-#### 4. Test multiple sessions:
-```bash
-curl -X POST http://127.0.0.1:8000/chat \
-  -H "Content-Type: application/json" \
-  -d '{"session_id": "another-session", "message": ""}'
-```
-
-### State Machine Flow
-
-The intake process follows these steps:
-1. **intro** → Introduction and birthday request
-2. **verify_birthday** → Verify identity (expects "1983-01-01")
-3. **list_prescriptions** → Collect current medications
-4. **list_symptoms** → Collect current symptoms
-5. **list_allergies** → Collect known allergies
-6. **completed** → Intake process finished
+This will open a browser window with the SIVA UI. You can type messages and see the agent's reply and the collected intake data.
 
 ---
 
-## Pipecat-AI Utility Overview (for future reimplementation)
-
-The original codebase used `pipecat-ai` to provide the following features:
-
-- **Voice Activity Detection (VAD):**
-  - `SileroVADAnalyzer` for detecting speech in audio streams.
-- **Audio Frame Handling:**
-  - `OutputAudioRawFrame` for managing raw audio data.
-- **Pipeline Architecture:**
-  - `Pipeline`, `PipelineRunner`, `PipelineTask`, `PipelineParams` for chaining together audio, LLM, and TTS processing steps.
-- **LLM Integration:**
-  - `OpenAILLMService`, `OpenAILLMContext`, `OpenAILLMContextFrame` for managing conversation state and interacting with OpenAI LLMs.
-  - Function call registration and context management for conversational flows.
-- **Text-to-Speech (TTS):**
-  - `CartesiaTTSService` for generating speech from text using Cartesia.
-- **Audio/Video Transport:**
-  - `DailyTransport`, `DailyParams` for connecting to Daily.co rooms and handling real-time audio/video.
-  - `DailyRESTHelper`, `DailyRoomParams` for room management and token generation.
-- **Frame Logging:**
-  - `FrameLogger` for debugging and logging pipeline frames.
-- **General Pipeline Processing:**
-  - `FrameDirection`, `FrameProcessor` for managing the flow of data through the pipeline.
+## How the Hybrid LLM/State Machine Works
+- The backend provides the LLM with a system prompt and a set of function schemas (for birthday, prescriptions, allergies, etc).
+- The LLM is free to drive the conversation, ask for clarification, and call backend functions as it collects information.
+- When the LLM calls a function, the backend stores the structured data in the session and lets the LLM continue.
+- The conversation ends when all required information is collected.
+- The Gradio UI displays both the agent's reply and the structured data in real time.
 
 ---
 
-## Next Steps
+## Example .env File
+```
+OPENAI_API_KEY=sk-...your-key-here...
+```
 
-- Remove all `pipecat-ai` dependencies from the codebase.
-- Start with a minimal FastAPI server and add features incrementally.
+---
+
+## API Testing with curl (Optional)
+
+You can still test the backend directly:
+
+```bash
+curl -X POST http://127.0.0.1:8000/chat \
+  -H "Content-Type: application/json" \
+  -d '{"session_id": "test-session-1", "message": "hi"}'
+```
+
+---
+
+## Future Directions
+- Add speech-to-text and text-to-speech for full voice agent experience.
+- More advanced state/context management for latency and robustness.
+- Integration with real EHR or scheduling systems.
+
+---
+
+## License
+BSD 2-Clause
