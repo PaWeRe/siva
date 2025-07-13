@@ -2,3 +2,7 @@ python-dotenv
 fastapi[all]
 uvicorn
 gradio
+cartesia
+openai
+sounddevice
+numpy

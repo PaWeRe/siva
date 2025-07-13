@@ -1,12 +1,14 @@
 """Pipecat-inspired patient intake voice bot, written from scratch."""
 import os
 from dotenv import load_dotenv
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, WebSocket
 from pydantic import BaseModel
 from typing import List, Dict, Any, Optional
 import openai
 from openai import OpenAI
 from fastapi.middleware.cors import CORSMiddleware
+import asyncio
+from cartesia import AsyncCartesia
 
 app = FastAPI()
 
@@ -25,6 +27,9 @@ client = OpenAI(api_key=openai_api_key)
 
 # Simple in-memory session store (for demo purposes)
 sessions: Dict[str, Dict[str, Any]] = {}
+
+SONIC_MODEL_ID = "sonic-2"
+VOICE_ID = "5c43e078-5ba4-4e1f-9639-8d85a403f76a"  # Replace with your preferred voice id
 
 class UserMessage(BaseModel):
     session_id: str
@@ -194,3 +199,113 @@ async def chat(user_message: UserMessage):
 @app.get("/")
 def root():
     return {"message": "SIVA Intake API is running."}
+
+@app.websocket("/ws/tts")
+async def websocket_tts(websocket: WebSocket):
+    print("TTS WebSocket connection received")
+    await websocket.accept()
+    print("TTS WebSocket accepted")
+    client = AsyncCartesia(api_key=os.getenv("CARTESIA_API_KEY"))
+    print("Cartesia client created")
+    try:
+        print("Waiting for text message...")
+        data = await websocket.receive_text()
+        print(f"Received text: {data[:50]}...")
+
+        print("Creating Cartesia WebSocket...")
+        ws = await client.tts.websocket()
+        print("Cartesia WebSocket created, sending request...")
+
+        output_generate = await ws.send(
+            model_id=SONIC_MODEL_ID,
+            transcript=data,
+            voice={"id": VOICE_ID},
+            output_format={
+                "container": "raw",
+                "encoding": "pcm_f32le",
+                "sample_rate": 44100
+            },
+            stream=True
+        )
+        print("TTS request sent, processing audio chunks...")
+
+        chunk_count = 0
+        async for out in output_generate:
+            if out.audio is not None:
+                chunk_count += 1
+                print(f"Sending chunk {chunk_count}: {len(out.audio)} bytes")
+                await websocket.send_bytes(out.audio)
+
+        print(f"Finished sending {chunk_count} chunks")
+        await ws.close()
+        print("Cartesia WebSocket closed")
+        
+        # Close the WebSocket connection gracefully
+        await websocket.close()
+        print("Frontend WebSocket closed")
+        
+    except Exception as e:
+        print(f"TTS WebSocket error: {e}")
+        import traceback
+        traceback.print_exc()
+        try:
+            await websocket.close()
+        except:
+            pass
+    finally:
+        await client.close()
+        print("Cartesia client closed")
+
+@app.websocket("/ws/stt")
+async def websocket_stt(websocket: WebSocket):
+    print("STT WebSocket connection received")
+    await websocket.accept()
+    print("STT WebSocket accepted")
+    client = AsyncCartesia(api_key=os.getenv("CARTESIA_API_KEY"))
+    print("Cartesia STT client created")
+    try:
+        ws = await client.stt.websocket(model="ink-whisper", language="en")
+        print("Cartesia STT WebSocket created")
+        
+        # Collect all audio data first
+        audio_data = b""
+        try:
+            while True:
+                audio_chunk = await websocket.receive_bytes()
+                if not audio_chunk:  # End of stream
+                    break
+                audio_data += audio_chunk
+                print(f"Received audio chunk: {len(audio_chunk)} bytes")
+        except Exception as e:
+            print(f"Finished receiving audio: {e}")
+        
+        print(f"Total audio received: {len(audio_data)} bytes")
+        
+        # Send audio to Cartesia
+        await ws.send(audio_data)
+        print("Audio sent to Cartesia")
+        
+        # Collect transcript
+        transcript = ""
+        async for result in ws:
+            transcript += result.text
+            print(f"Received transcript: {result.text}")
+        
+        print(f"Final transcript: {transcript}")
+        await websocket.send_text(transcript)
+        
+        await ws.close()
+        await websocket.close()
+        print("STT WebSocket closed")
+        
+    except Exception as e:
+        print(f"STT WebSocket error: {e}")
+        import traceback
+        traceback.print_exc()
+        try:
+            await websocket.close()
+        except:
+            pass
+    finally:
+        await client.close()
+        print("STT client closed")
