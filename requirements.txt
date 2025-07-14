@@ -6,3 +6,4 @@ cartesia
 openai
 sounddevice
 numpy
+playsound

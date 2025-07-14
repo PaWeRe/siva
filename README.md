@@ -1,103 +1,105 @@
 # SIVA - Minimal Patient Intake Voice Agent
 
-This project is a minimal, from-scratch patient intake voice agent inspired by [Pipecat's patient-intake repo](https://github.com/pipecat-ai/pipecat/tree/main/examples/patient-intake).
-
-## Features
-- **Hybrid LLM/State Machine Intake Flow:**
-  - Uses OpenAI's function calling API to let the LLM drive the conversation and call backend functions to store structured data (birthday, prescriptions, allergies, conditions, visit reasons).
-  - Backend stores all collected data in a session and guides the LLM with a system prompt and function schemas.
-- **Gradio Frontend:**
-  - Modern web UI for interacting with the agent via text (and microphone UI for future voice support).
-  - Displays both the agent's reply and the structured intake data in real time.
-- **FastAPI Backend:**
-  - Handles chat requests, session management, and OpenAI API calls.
-- **.env Support:**
-  - Uses `python-dotenv` to load your OpenAI API key from a `.env` file.
+A minimal, from-scratch voice agent for patient intake, featuring a pure HTML/JavaScript frontend and FastAPI backend. Designed for fast, natural, voice-driven data collection before a doctor visit.
 
 ---
 
 ## Quick Start
 
-### Prerequisites
-- Python 3.10+
-- [uv](https://docs.astral.sh/uv/) package manager
-
-### Setup Instructions
-
-1. **Clone the repository and navigate to the project root:**
-   ```bash
-   cd /path/to/leaping
-   ```
-
-2. **Create and activate a virtual environment:**
-   ```bash
-   python -m venv .venv
-   source .venv/bin/activate  # On Windows: .venv\Scripts\activate
-   ```
-
-3. **Install dependencies:**
-   ```bash
-   uv pip install -r siva/requirements.txt
-   ```
-
-4. **Set up environment variables:**
-   - Create a `.env` file in the `siva/` directory (or project root) with:
+- **Requirements:** Python 3.10+, [uv](https://docs.astral.sh/uv/) (for venv & package management), browser with mic access
+- **Setup:**
+  1. Create & activate venv:
+     ```bash
+     uv venv .venv && source .venv/bin/activate
      ```
-     OPENAI_API_KEY=sk-...your-key-here...
+  2. Install dependencies:
+     ```bash
+     uv pip install -r siva/requirements.txt
+     ```
+  3. Add `.env` in `siva/` or root:
+     ```
+     OPENAI_API_KEY=sk-...your-key...
+     CARTESIA_API_KEY=...your-key...
      ```
 
 ---
 
-## Running the Server
+## Running the Voice Agent
 
-### Start the FastAPI Backend
+### Option 1: Unified Launcher (Recommended)
 ```bash
-uvicorn siva.main:app --reload
+cd siva
+python run_voice_app.py
 ```
-The server will start at `http://127.0.0.1:8000`
+- Starts both backend (FastAPI) and frontend (voice client server)
+- Opens [http://localhost:3000/voice_client.html](http://localhost:3000/voice_client.html)
 
-### Start the Gradio Frontend
+### Option 2: Run Servers Separately
 ```bash
-python siva/gradio_frontend.py
-```
-This will open a browser window with the SIVA UI. You can type messages and see the agent's reply and the collected intake data.
+# Terminal 1 - Backend
+cd siva
+uvicorn main:app --host localhost --port 8000 --reload
 
----
-
-## How the Hybrid LLM/State Machine Works
-- The backend provides the LLM with a system prompt and a set of function schemas (for birthday, prescriptions, allergies, etc).
-- The LLM is free to drive the conversation, ask for clarification, and call backend functions as it collects information.
-- When the LLM calls a function, the backend stores the structured data in the session and lets the LLM continue.
-- The conversation ends when all required information is collected.
-- The Gradio UI displays both the agent's reply and the structured data in real time.
-
----
-
-## Example .env File
-```
-OPENAI_API_KEY=sk-...your-key-here...
+# Terminal 2 - Voice Client
+cd siva
+python serve_client.py
 ```
 
 ---
 
-## API Testing with curl (Optional)
+## Using the Voice Client
+1. Open [http://localhost:3000/voice_client.html](http://localhost:3000/voice_client.html)
+2. Click the call button or press spacebar to start
+3. Wait for the agent to speak, then respond when prompted
+4. The agent will guide you through: full name, birthday, prescriptions, allergies, conditions, and reason for visit
+5. Conversation ends automatically when all info is collected
 
-You can still test the backend directly:
+---
 
-```bash
-curl -X POST http://127.0.0.1:8000/chat \
-  -H "Content-Type: application/json" \
-  -d '{"session_id": "test-session-1", "message": "hi"}'
+## Debugging
+- Run `python debug_conversation.py` to test backend logic step-by-step (no voice required)
+- Check browser console (F12) for frontend logs
+- Check terminal for backend logs
+
+---
+
+## System Overview
+- **Frontend:** Pure HTML/JavaScript (`voice_client.html`), served by `serve_client.py`
+- **Backend:** FastAPI (`main.py`)
+- **Launcher:** `run_voice_app.py` (starts both servers)
+- **Audio assets:** `assets/` (UI feedback sounds)
+- **Models used:**
+  - **TTS:** Cartesia Sonic-2 (`model_id="sonic-2"`)
+  - **LLM:** OpenAI GPT-3.5 Turbo 1106 (`model="gpt-3.5-turbo-1106"`)
+  - **STT:** OpenAI Whisper v1 (`model="whisper-1"`)
+
+---
+
+## Lessons Learned (and still learning)
+- **Gradio is not ideal for voice agent streaming:** Handling real-time audio, state, and streaming with Gradio is difficult; a custom HTML/JS frontend is much more flexible for voice agents.
+- **Recursive state-based LLM calls:** Managing state and recursive LLM function calls in the backend helps guide the conversation and prevents hallucinations 
+- **Latency is critical and challenging:** Achieving low-latency (sub-second, e.g. 800ms) is very hard. See [Pipecat's latency discussion](https://gist.github.com/kwindla/f755284ef2b14730e1075c2ac803edcf). My current setup is still far from this target.
+- **Voice agent architecture & model orchestration:** All practical voice agents today use a TTS-LLM-STT pipeline (not voice-to-voice) because voice-to-voice models are not yet good enough for instruction following and context engineering (it appears...?). Orchestrating these three models (TTS, LLM, STT) is non-trivial, especially when using different providers for each.
+- ...
+
+---
+
+## Project Structure
 ```
-
----
-
-## Future Directions
-- Add speech-to-text and text-to-speech for full voice agent experience.
-- More advanced state/context management for latency and robustness.
-- Integration with real EHR or scheduling systems.
-
----
-
-## License
-BSD 2-Clause
+siva/
+  main.py
+  run_voice_app.py
+  serve_client.py
+  voice_client.html
+  requirements.txt
+  assets/
+    clack-short-quiet.wav
+    clack-short.wav
+    clack.wav
+    ding.wav
+    ding2.wav
+    ding3.wav
+  debug_conversation.py
+  old/
+    gradio_frontend.py
+```

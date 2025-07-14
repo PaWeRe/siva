@@ -8,6 +8,8 @@ import sounddevice as sd
 import numpy as np
 import threading
 import time
+import os
+import subprocess
 
 API_URL = "http://localhost:8000/chat"
 TTS_WS_URL = "ws://localhost:8000/ws/tts"
@@ -19,6 +21,9 @@ session_id = str(uuid.uuid4())
 # Global state for the call
 call_active = False
 transcript_log = []
+
+ASSETS_DIR = os.path.join(os.path.dirname(__file__), 'assets')
+DING_PATH = os.path.join(ASSETS_DIR, 'ding.wav')
 
 def test_backend_connection():
     """Test if the backend is reachable"""
@@ -42,12 +47,13 @@ def chat_with_agent(user_input):
             print(f"Chat API response: {result}")
             reply = result.get("reply", "No reply from server.")
             data = result.get("data", {})
-            return reply, data
+            end_call = result.get("end_call", False) # Added end_call flag
+            return reply, data, end_call
         else:
-            return f"Error: {response.status_code}", {}
+            return f"Error: {response.status_code}", {}, False
     except Exception as e:
         print(f"Chat API error: {e}")
-        return f"Error: {e}", {}
+        return f"Error: {e}", {}, False
 
 def play_tts(text):
     print(f"Playing TTS for: {text[:50]}...")
@@ -138,40 +144,56 @@ def start_call():
         print("Greeting played, getting first question...")
         
         # Get agent's first question by sending empty message to trigger intro
-        reply, data = chat_with_agent("")
+        reply, data, end_call = chat_with_agent("")
         print(f"Agent reply: {reply}")
         transcript_log.append(("Agent", reply))
         play_tts(reply)
         
-        return format_transcript(), json.dumps(data, indent=2), gr.update(visible=True), gr.update(visible=False), gr.update(visible=True)
+        mic_status = "🎤 Mic is ON – please speak now!"
+        try:
+            subprocess.run(['afplay', DING_PATH])
+        except Exception as e:
+            print(f"Ding sound error: {e}")
+        return format_transcript(), json.dumps(data, indent=2), gr.update(visible=True), gr.update(visible=False), gr.update(visible=True), gr.update(value=mic_status)
     except Exception as e:
         print(f"Error in start_call: {e}")
-        return f"Error starting call: {e}", "{}", gr.update(visible=False), gr.update(visible=True), gr.update(visible=False)
+        return f"Error starting call: {e}", "{}", gr.update(visible=False), gr.update(visible=True), gr.update(visible=False), gr.update(value="Mic is OFF.")
 
 def stop_call():
     global call_active
     print("Stopping call...")
     call_active = False
     transcript_log.append(("System", "Call ended"))
-    return format_transcript(), "{}", gr.update(visible=False), gr.update(visible=True), gr.update(visible=False)
+    return format_transcript(), "{}", gr.update(visible=False), gr.update(visible=True), gr.update(visible=False), gr.update(value="Mic is OFF. Call ended.")
 
 def handle_user_response(audio_path):
     global transcript_log
     if not call_active or not audio_path:
-        return format_transcript(), "{}", gr.update(visible=True), gr.update(visible=False)
+        return format_transcript(), "{}", gr.update(visible=True), gr.update(visible=False), gr.update(value="Mic is OFF.")
     
     # Transcribe user's response
     user_text = transcribe_audio(audio_path)
     transcript_log.append(("You", user_text))
     
     # Get agent's response
-    reply, data = chat_with_agent(user_text)
+    reply, data, end_call = chat_with_agent(user_text)
     transcript_log.append(("Agent", reply))
     
     # Play agent's response
     play_tts(reply)
     
-    return format_transcript(), json.dumps(data, indent=2), gr.update(visible=True), gr.update(visible=False)
+    mic_status = "🎤 Mic is ON – please speak now!"
+    if end_call:
+        call_active = False
+        mic_status = "Mic is OFF. Call ended."
+        return format_transcript(), json.dumps(data, indent=2), gr.update(visible=False), gr.update(visible=True), gr.update(value=mic_status)
+    else:
+        mic_status = "Mic is OFF. Processing..."
+        try:
+            subprocess.run(['afplay', DING_PATH])
+        except Exception as e:
+            print(f"Ding sound error: {e}")
+        return format_transcript(), json.dumps(data, indent=2), gr.update(visible=True), gr.update(visible=False), gr.update(value=mic_status)
 
 def format_transcript():
     formatted = ""
@@ -189,6 +211,7 @@ with gr.Blocks(title="SIVA - Voice Patient Intake") as demo:
     
     # Add backend status
     backend_status = gr.Textbox(value=test_backend_connection(), label="Backend Status", interactive=False)
+    mic_status_display = gr.Markdown(value="", label="Mic Status")
     
     with gr.Row():
         with gr.Column(scale=2):
@@ -218,18 +241,18 @@ with gr.Blocks(title="SIVA - Voice Patient Intake") as demo:
     # Event handlers
     start_btn.click(
         start_call,
-        outputs=[transcript_display, data_display, mic_input, start_btn, stop_btn]
+        outputs=[transcript_display, data_display, mic_input, start_btn, stop_btn, mic_status_display]
     )
     
     stop_btn.click(
         stop_call,
-        outputs=[transcript_display, data_display, mic_input, start_btn, stop_btn]
+        outputs=[transcript_display, data_display, mic_input, start_btn, stop_btn, mic_status_display]
     )
     
     mic_input.change(
         handle_user_response,
         inputs=[mic_input],
-        outputs=[transcript_display, data_display, mic_input, start_btn]
+        outputs=[transcript_display, data_display, mic_input, start_btn, mic_status_display]
     )
 
 if __name__ == "__main__":

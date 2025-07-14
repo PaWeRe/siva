@@ -1,0 +1,611 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>SIVA Voice Client</title>
+    <style>
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+          sans-serif;
+        margin: 0;
+        padding: 0;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .container {
+        background: white;
+        border-radius: 20px;
+        padding: 40px;
+        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+        text-align: center;
+        max-width: 400px;
+        width: 100%;
+      }
+
+      h1 {
+        color: #333;
+        margin-bottom: 30px;
+        font-size: 2.5em;
+      }
+
+      .status {
+        font-size: 1.2em;
+        margin: 20px 0;
+        padding: 15px;
+        border-radius: 10px;
+        font-weight: 500;
+      }
+
+      .status.idle {
+        background: #f8f9fa;
+        color: #6c757d;
+      }
+
+      .status.listening {
+        background: #d4edda;
+        color: #155724;
+        animation: pulse 2s infinite;
+      }
+
+      .status.speaking {
+        background: #cce5ff;
+        color: #004085;
+        animation: pulse 2s infinite;
+      }
+
+      .status.processing {
+        background: #fff3cd;
+        color: #856404;
+      }
+
+      @keyframes pulse {
+        0% {
+          opacity: 1;
+        }
+        50% {
+          opacity: 0.7;
+        }
+        100% {
+          opacity: 1;
+        }
+      }
+
+      .call-button {
+        background: #28a745;
+        color: white;
+        border: none;
+        border-radius: 50%;
+        width: 120px;
+        height: 120px;
+        font-size: 2em;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        margin: 20px 0;
+      }
+
+      .call-button:hover {
+        transform: scale(1.05);
+        box-shadow: 0 10px 20px rgba(40, 167, 69, 0.3);
+      }
+
+      .call-button:disabled {
+        background: #6c757d;
+        cursor: not-allowed;
+        transform: none;
+      }
+
+      .call-button.active {
+        background: #dc3545;
+      }
+
+      .connection-status {
+        font-size: 0.9em;
+        margin-top: 20px;
+        padding: 10px;
+        border-radius: 5px;
+      }
+
+      .connection-status.connected {
+        background: #d4edda;
+        color: #155724;
+      }
+
+      .connection-status.disconnected {
+        background: #f8d7da;
+        color: #721c24;
+      }
+
+      .session-info {
+        margin-top: 20px;
+        font-size: 0.8em;
+        color: #6c757d;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>🎤 SIVA</h1>
+      <div id="status" class="status idle">Ready to start call</div>
+      <button id="callButton" class="call-button">📞</button>
+      <div id="connectionStatus" class="connection-status disconnected">
+        Checking backend...
+      </div>
+      <div id="sessionInfo" class="session-info"></div>
+    </div>
+
+    <script>
+      class VoiceClient {
+        constructor() {
+          this.sessionId = this.generateSessionId();
+          this.isCallActive = false;
+          this.isListening = false;
+          this.isSpeaking = false;
+          this.mediaRecorder = null;
+          this.audioChunks = [];
+          this.conversationLog = [];
+
+          this.statusElement = document.getElementById("status");
+          this.callButton = document.getElementById("callButton");
+          this.connectionStatus = document.getElementById("connectionStatus");
+          this.sessionInfo = document.getElementById("sessionInfo");
+
+          this.initializeClient();
+        }
+
+        generateSessionId() {
+          return "session_" + Math.random().toString(36).substr(2, 9);
+        }
+
+        async initializeClient() {
+          this.updateSessionInfo();
+          await this.checkBackendConnection();
+          this.setupEventListeners();
+          this.log("Voice client initialized", "system");
+        }
+
+        async checkBackendConnection() {
+          try {
+            const response = await fetch("http://localhost:8000/");
+            if (response.ok) {
+              this.updateConnectionStatus(true);
+              this.log("Backend connected successfully", "system");
+            } else {
+              throw new Error(`Backend error: ${response.status}`);
+            }
+          } catch (error) {
+            this.updateConnectionStatus(false);
+            this.log(`Backend connection failed: ${error.message}`, "error");
+          }
+        }
+
+        updateConnectionStatus(connected) {
+          this.connectionStatus.className = `connection-status ${
+            connected ? "connected" : "disconnected"
+          }`;
+          this.connectionStatus.textContent = connected
+            ? "✅ Backend Connected"
+            : "❌ Backend Disconnected";
+          this.callButton.disabled = !connected;
+        }
+
+        updateSessionInfo() {
+          this.sessionInfo.textContent = `Session: ${this.sessionId}`;
+        }
+
+        setupEventListeners() {
+          this.callButton.addEventListener("click", () => {
+            if (this.isCallActive) {
+              if (this.isListening) {
+                // If currently listening, stop recording to submit response
+                this.stopListening();
+              } else {
+                // If not listening, end the call
+                this.endCall();
+              }
+            } else {
+              this.startCall();
+            }
+          });
+        }
+
+        updateStatus(message, type = "idle") {
+          this.statusElement.textContent = message;
+          this.statusElement.className = `status ${type}`;
+          this.log(`Status: ${message}`, "status");
+        }
+
+        log(message, type = "info") {
+          const timestamp = new Date().toLocaleTimeString();
+          const logEntry = `[${timestamp}] [${type.toUpperCase()}] ${message}`;
+          console.log(logEntry);
+
+          if (type === "user" || type === "agent") {
+            this.conversationLog.push({ type, message, timestamp });
+          }
+        }
+
+        async startCall() {
+          this.log("Starting call...", "system");
+          this.isCallActive = true;
+          this.callButton.textContent = "⏹️";
+          this.callButton.className = "call-button active";
+          this.updateStatus("Initializing call...", "processing");
+
+          try {
+            // Send a proper greeting message instead of empty string
+            const response = await this.sendChatMessage(
+              "Hello, I'm here for my appointment."
+            );
+            await this.handleAgentResponse(response);
+          } catch (error) {
+            this.log(`Error starting call: ${error.message}`, "error");
+            this.endCall();
+          }
+        }
+
+        async endCall() {
+          this.log("Ending call...", "system");
+          this.isCallActive = false;
+          this.isListening = false;
+          this.isSpeaking = false;
+
+          if (this.mediaRecorder && this.mediaRecorder.state !== "inactive") {
+            this.mediaRecorder.stop();
+          }
+
+          this.callButton.textContent = "📞";
+          this.callButton.className = "call-button";
+          this.updateStatus("Call ended", "idle");
+
+          this.log("Call ended. Conversation summary:", "system");
+          this.conversationLog.forEach((entry) => {
+            this.log(
+              `${entry.type.toUpperCase()}: ${entry.message}`,
+              "summary"
+            );
+          });
+        }
+
+        async sendChatMessage(message) {
+          const response = await fetch("http://localhost:8000/chat", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              session_id: this.sessionId,
+              message: message,
+            }),
+          });
+
+          if (!response.ok) {
+            throw new Error(`Chat API error: ${response.status}`);
+          }
+
+          return response.json();
+        }
+
+        async handleAgentResponse(response) {
+          if (!response.reply) {
+            throw new Error("No reply from agent");
+          }
+
+          this.log(response.reply, "agent");
+          this.updateStatus("Agent speaking...", "speaking");
+          this.isSpeaking = true;
+
+          await this.playTTS(response.reply);
+
+          this.isSpeaking = false;
+
+          if (response.end_call) {
+            this.log("Agent indicated call should end", "system");
+            this.endCall();
+            return;
+          }
+
+          // Continue listening for user response
+          this.startListening();
+        }
+
+        async playTTS(text) {
+          return new Promise((resolve, reject) => {
+            const ws = new WebSocket("ws://localhost:8000/ws/tts");
+            const audioChunks = [];
+            let hasReceivedData = false;
+
+            // Add timeout to prevent hanging
+            const timeout = setTimeout(() => {
+              this.log("TTS timeout - closing connection", "error");
+              ws.close();
+              reject(new Error("TTS timeout"));
+            }, 30000);
+
+            ws.onopen = () => {
+              this.log(`Playing TTS: "${text.substring(0, 50)}..."`, "system");
+              ws.send(text);
+            };
+
+            ws.onmessage = (event) => {
+              if (event.data instanceof Blob) {
+                audioChunks.push(event.data);
+                hasReceivedData = true;
+                this.log(
+                  `Received TTS chunk ${audioChunks.length}: ${event.data.size} bytes`,
+                  "system"
+                );
+              } else {
+                this.log(
+                  `Received non-blob TTS data: ${typeof event.data}`,
+                  "system"
+                );
+              }
+            };
+
+            ws.onclose = async () => {
+              clearTimeout(timeout);
+              try {
+                this.log(
+                  `TTS WebSocket closed. Received ${audioChunks.length} chunks`,
+                  "system"
+                );
+
+                if (audioChunks.length > 0) {
+                  const audioBlob = new Blob(audioChunks);
+                  const audioArray = await audioBlob.arrayBuffer();
+                  this.log(
+                    `Processing ${audioArray.byteLength} bytes of audio`,
+                    "system"
+                  );
+
+                  if (audioArray.byteLength > 0) {
+                    const audioData = new Float32Array(audioArray);
+
+                    const audioContext = new (window.AudioContext ||
+                      window.webkitAudioContext)();
+                    const audioBuffer = audioContext.createBuffer(
+                      1,
+                      audioData.length,
+                      44100
+                    );
+                    audioBuffer.getChannelData(0).set(audioData);
+
+                    const source = audioContext.createBufferSource();
+                    source.buffer = audioBuffer;
+                    source.connect(audioContext.destination);
+
+                    source.onended = () => {
+                      this.log("TTS playback finished", "system");
+                      resolve();
+                    };
+
+                    source.start();
+                  } else {
+                    this.log("Empty audio buffer received", "error");
+                    resolve();
+                  }
+                } else {
+                  this.log("No audio chunks received from TTS", "error");
+                  resolve();
+                }
+              } catch (error) {
+                this.log(`TTS playback error: ${error.message}`, "error");
+                resolve(); // Don't reject, just continue
+              }
+            };
+
+            ws.onerror = (error) => {
+              clearTimeout(timeout);
+              this.log(`TTS WebSocket error: ${error}`, "error");
+              resolve(); // Don't reject, just continue
+            };
+          });
+        }
+
+        async startListening() {
+          if (!this.isCallActive || this.isSpeaking) return;
+
+          this.updateStatus(
+            "🎤 Listening... Speak now! (Click to stop)",
+            "listening"
+          );
+          this.isListening = true;
+          this.audioChunks = [];
+
+          try {
+            const stream = await navigator.mediaDevices.getUserMedia({
+              audio: true,
+            });
+            this.mediaRecorder = new MediaRecorder(stream);
+            this.log("Started recording from microphone", "system");
+
+            this.mediaRecorder.ondataavailable = (event) => {
+              if (event.data.size > 0) {
+                this.audioChunks.push(event.data);
+                this.log(
+                  `Recorded audio chunk: ${event.data.size} bytes`,
+                  "system"
+                );
+              }
+            };
+
+            this.mediaRecorder.onstop = async () => {
+              stream.getTracks().forEach((track) => track.stop());
+              this.log(
+                `Recording stopped. Total chunks: ${this.audioChunks.length}`,
+                "system"
+              );
+
+              if (this.audioChunks.length > 0 && this.isCallActive) {
+                await this.processUserAudio();
+              } else if (this.isCallActive) {
+                this.log(
+                  "No audio recorded, continuing to listen...",
+                  "system"
+                );
+                // Try listening again after a short delay
+                setTimeout(() => this.startListening(), 1000);
+              }
+            };
+
+            this.mediaRecorder.start();
+
+            // Auto-stop recording after 15 seconds (increased timeout)
+            this.recordingTimeout = setTimeout(() => {
+              if (
+                this.mediaRecorder &&
+                this.mediaRecorder.state === "recording"
+              ) {
+                this.log("Auto-stopping recording after 15 seconds", "system");
+                this.stopListening();
+              }
+            }, 15000);
+          } catch (error) {
+            this.log(`Microphone access error: ${error.message}`, "error");
+            this.updateStatus(
+              "Microphone access denied - please check permissions",
+              "idle"
+            );
+          }
+        }
+
+        stopListening() {
+          this.log("testtiiiinnnngggg");
+          if (this.mediaRecorder && this.mediaRecorder.state === "recording") {
+            this.log("Manually stopping recording", "system");
+            this.mediaRecorder.stop();
+          }
+          if (this.recordingTimeout) {
+            clearTimeout(this.recordingTimeout);
+            this.recordingTimeout = null;
+          }
+          this.isListening = false;
+        }
+
+        async processUserAudio() {
+          this.updateStatus("Processing your response...", "processing");
+
+          try {
+            const audioBlob = new Blob(this.audioChunks, { type: "audio/wav" });
+            const transcript = await this.transcribeAudio(audioBlob);
+
+            if (transcript.trim()) {
+              this.log(transcript, "user");
+
+              const response = await this.sendChatMessage(transcript);
+              await this.handleAgentResponse(response);
+            } else {
+              this.log("No speech detected, continuing to listen...", "system");
+              this.startListening();
+            }
+          } catch (error) {
+            this.log(`Error processing audio: ${error.message}`, "error");
+            this.startListening();
+          }
+        }
+
+        async transcribeAudio(audioBlob) {
+          return new Promise((resolve, reject) => {
+            const ws = new WebSocket("ws://localhost:8000/ws/stt");
+            let transcript = "";
+            let hasReceivedResponse = false;
+
+            // Add timeout for STT but don't auto-close the WebSocket
+            const timeout = setTimeout(() => {
+              this.log("STT timeout - closing connection", "error");
+              if (!hasReceivedResponse) {
+                ws.close();
+                resolve(""); // Return empty string on timeout
+              }
+            }, 15000);
+
+            ws.onopen = () => {
+              this.log(
+                `Sending ${audioBlob.size} bytes for transcription...`,
+                "system"
+              );
+              if (audioBlob.size === 0) {
+                this.log("Empty audio blob - skipping transcription", "system");
+                clearTimeout(timeout);
+                ws.close();
+                resolve("");
+                return;
+              }
+
+              audioBlob
+                .arrayBuffer()
+                .then((buffer) => {
+                  if (buffer.byteLength === 0) {
+                    this.log(
+                      "Empty audio buffer - skipping transcription",
+                      "system"
+                    );
+                    clearTimeout(timeout);
+                    ws.close();
+                    resolve("");
+                    return;
+                  }
+                  // Send audio buffer and wait for response
+                  ws.send(buffer);
+                  this.log(
+                    "Audio sent, waiting for transcription...",
+                    "system"
+                  );
+                })
+                .catch((error) => {
+                  this.log(
+                    `Error reading audio blob: ${error.message}`,
+                    "error"
+                  );
+                  clearTimeout(timeout);
+                  reject(error);
+                });
+            };
+
+            ws.onmessage = (event) => {
+              hasReceivedResponse = true;
+              transcript += event.data;
+              this.log(`Received STT chunk: "${event.data}"`, "system");
+
+              // Close the WebSocket after receiving the response
+              clearTimeout(timeout);
+              ws.close();
+            };
+
+            ws.onclose = () => {
+              clearTimeout(timeout);
+              const cleanTranscript = transcript.trim();
+              this.log(`Final transcription: "${cleanTranscript}"`, "system");
+              resolve(cleanTranscript);
+            };
+
+            ws.onerror = (error) => {
+              clearTimeout(timeout);
+              this.log(`STT WebSocket error: ${error}`, "error");
+              resolve(""); // Return empty string on error instead of rejecting
+            };
+          });
+        }
+      }
+
+      // Initialize the voice client when the page loads
+      document.addEventListener("DOMContentLoaded", () => {
+        new VoiceClient();
+      });
+
+      // Handle keyboard shortcuts
+      document.addEventListener("keydown", (event) => {
+        if (event.code === "Space" && event.target.tagName !== "INPUT") {
+          event.preventDefault();
+          const callButton = document.getElementById("callButton");
+          if (!callButton.disabled) {
+            callButton.click();
+          }
+        }
+      });
+    </script>
+  </body>
+</html>
