@@ -5,6 +5,8 @@ import subprocess
 import sys
 import time
 import os
+import webbrowser
+import threading
 from pathlib import Path
 
 
@@ -35,6 +37,16 @@ def run_client_server():
     )
 
 
+def open_dashboard():
+    """Open dashboard in browser after backend is ready."""
+    time.sleep(5)  # Wait for backend to be fully ready
+    try:
+        print("🌐 Opening dashboard in browser...")
+        webbrowser.open("http://localhost:8000/dashboard")
+    except Exception as e:
+        print(f"⚠️  Could not open dashboard automatically: {e}")
+
+
 def main():
     """Main function to coordinate both servers."""
     print("🎤 SIVA Voice Application Launcher")
@@ -59,10 +71,21 @@ def main():
         # Start client server
         client_process = run_client_server()
 
-        print("\n✅ Both servers are running!")
-        print("🔗 Voice Client: http://localhost:3000/voice_client.html")
-        print("🔗 Backend API: http://localhost:8000")
-        print("\nPress Ctrl+C to stop both servers")
+        # Start dashboard opener in background thread
+        dashboard_thread = threading.Thread(target=open_dashboard)
+        dashboard_thread.daemon = True
+        dashboard_thread.start()
+
+        print("\n✅ All servers are running!")
+        print("🔗 Available endpoints:")
+        print("   📱 Voice Client: http://localhost:3000/voice_client.html")
+        print("   📊 Dashboard: http://localhost:8000/dashboard")
+        print("   🔧 Backend API: http://localhost:8000")
+        print("\n🎯 Quick Start:")
+        print("   1. Use Voice Client for patient interactions")
+        print("   2. Use Dashboard to monitor system learning")
+        print("   3. Dashboard will auto-open in your browser")
+        print("\nPress Ctrl+C to stop all servers")
 
         # Wait for processes
         try:

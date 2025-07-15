@@ -1,0 +1,753 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>SIVA Learning Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+          sans-serif;
+        margin: 0;
+        padding: 20px;
+        background: #f5f5f5;
+        color: #333;
+      }
+
+      .header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 20px;
+        border-radius: 10px;
+        margin-bottom: 20px;
+        text-align: center;
+      }
+
+      .header h1 {
+        margin: 0;
+        font-size: 2.5em;
+      }
+
+      .header p {
+        margin: 10px 0 0 0;
+        opacity: 0.9;
+      }
+
+      .dashboard-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+        gap: 20px;
+        margin-bottom: 20px;
+      }
+
+      .card {
+        background: white;
+        border-radius: 10px;
+        padding: 20px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        border-left: 4px solid #667eea;
+      }
+
+      .card h3 {
+        margin-top: 0;
+        color: #333;
+        font-size: 1.2em;
+      }
+
+      .metric {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin: 10px 0;
+        padding: 10px;
+        background: #f8f9fa;
+        border-radius: 5px;
+      }
+
+      .metric-value {
+        font-size: 1.5em;
+        font-weight: bold;
+        color: #667eea;
+      }
+
+      .status-indicator {
+        display: inline-block;
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        margin-right: 8px;
+      }
+
+      .status-online {
+        background: #28a745;
+      }
+      .status-offline {
+        background: #dc3545;
+      }
+      .status-warning {
+        background: #ffc107;
+      }
+
+      .chart-container {
+        background: white;
+        border-radius: 10px;
+        padding: 20px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        margin-bottom: 20px;
+      }
+
+      .recent-activity {
+        background: white;
+        border-radius: 10px;
+        padding: 20px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+      }
+
+      .activity-item {
+        display: flex;
+        align-items: center;
+        padding: 10px;
+        margin: 5px 0;
+        background: #f8f9fa;
+        border-radius: 5px;
+        border-left: 3px solid #667eea;
+      }
+
+      .activity-time {
+        font-size: 0.8em;
+        color: #666;
+        margin-left: auto;
+      }
+
+      .controls {
+        background: white;
+        border-radius: 10px;
+        padding: 20px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        margin-bottom: 20px;
+        text-align: center;
+      }
+
+      .button {
+        background: #667eea;
+        color: white;
+        border: none;
+        padding: 10px 20px;
+        border-radius: 5px;
+        cursor: pointer;
+        margin: 5px;
+        font-size: 1em;
+        transition: background 0.3s;
+      }
+
+      .button:hover {
+        background: #5a6fd8;
+      }
+
+      .button.danger {
+        background: #dc3545;
+      }
+
+      .button.danger:hover {
+        background: #c82333;
+      }
+
+      .vector-store-item {
+        background: #f8f9fa;
+        border: 1px solid #dee2e6;
+        border-radius: 5px;
+        padding: 10px;
+        margin: 5px 0;
+      }
+
+      .route-badge {
+        display: inline-block;
+        padding: 3px 8px;
+        border-radius: 12px;
+        font-size: 0.8em;
+        font-weight: bold;
+        color: white;
+      }
+
+      .route-emergency {
+        background: #dc3545;
+      }
+      .route-urgent {
+        background: #fd7e14;
+      }
+      .route-routine {
+        background: #28a745;
+      }
+      .route-self_care {
+        background: #17a2b8;
+      }
+      .route-information {
+        background: #6c757d;
+      }
+
+      .escalation-outcome {
+        padding: 3px 8px;
+        border-radius: 12px;
+        font-size: 0.8em;
+        font-weight: bold;
+      }
+
+      .outcome-necessary {
+        background: #f8d7da;
+        color: #721c24;
+      }
+
+      .outcome-unnecessary {
+        background: #d4edda;
+        color: #155724;
+      }
+
+      .refresh-indicator {
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        background: #28a745;
+        color: white;
+        padding: 10px;
+        border-radius: 5px;
+        font-size: 0.9em;
+        opacity: 0;
+        transition: opacity 0.3s;
+      }
+
+      .refresh-indicator.show {
+        opacity: 1;
+      }
+
+      .learning-progress {
+        margin: 10px 0;
+      }
+
+      .progress-bar {
+        background: #e9ecef;
+        border-radius: 10px;
+        height: 20px;
+        overflow: hidden;
+      }
+
+      .progress-fill {
+        background: linear-gradient(90deg, #667eea, #764ba2);
+        height: 100%;
+        transition: width 0.3s ease;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        font-size: 0.8em;
+        font-weight: bold;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="header">
+      <h1>🧠 SIVA Learning Dashboard</h1>
+      <p>Real-time AI Self-Improvement Monitoring</p>
+    </div>
+
+    <div class="controls">
+      <button class="button" onclick="refreshDashboard()">
+        🔄 Refresh Data
+      </button>
+      <button class="button" onclick="runDemo()">🎬 Run Demo Scenarios</button>
+      <button class="button" onclick="exportData()">📊 Export Data</button>
+      <button class="button danger" onclick="resetSystem()">
+        🗑️ Reset System
+      </button>
+      <span class="status-indicator status-online" id="connectionStatus"></span>
+      <span id="connectionText">Connected</span>
+    </div>
+
+    <div class="dashboard-grid">
+      <!-- System Metrics -->
+      <div class="card">
+        <h3>📊 System Metrics</h3>
+        <div class="metric">
+          <span>Total Conversations</span>
+          <span class="metric-value" id="totalConversations">0</span>
+        </div>
+        <div class="metric">
+          <span>Vector Store Size</span>
+          <span class="metric-value" id="vectorStoreSize">0</span>
+        </div>
+        <div class="metric">
+          <span>System Accuracy</span>
+          <span class="metric-value" id="systemAccuracy">0%</span>
+        </div>
+        <div class="metric">
+          <span>Total Escalations</span>
+          <span class="metric-value" id="totalEscalations">0</span>
+        </div>
+      </div>
+
+      <!-- Escalation Metrics -->
+      <div class="card">
+        <h3>🚨 Escalation Analysis</h3>
+        <div class="metric">
+          <span>Escalation Rate</span>
+          <span class="metric-value" id="escalationRate">0%</span>
+        </div>
+        <div class="metric">
+          <span>Necessary Escalations</span>
+          <span class="metric-value" id="necessaryEscalations">0</span>
+        </div>
+        <div class="metric">
+          <span>Unnecessary Escalations</span>
+          <span class="metric-value" id="unnecessaryEscalations">0</span>
+        </div>
+        <div class="metric">
+          <span>Escalation Precision</span>
+          <span class="metric-value" id="escalationPrecision">0%</span>
+        </div>
+      </div>
+
+      <!-- Route Distribution -->
+      <div class="card">
+        <h3>🎯 Route Distribution</h3>
+        <div id="routeDistribution">
+          <!-- Will be populated dynamically -->
+        </div>
+      </div>
+
+      <!-- Learning Progress -->
+      <div class="card">
+        <h3>📈 Learning Progress</h3>
+        <div class="learning-progress">
+          <div>
+            System Readiness <small>(grows with training examples)</small>
+          </div>
+          <div class="progress-bar">
+            <div class="progress-fill" id="readinessProgress" style="width: 0%">
+              0%
+            </div>
+          </div>
+        </div>
+        <div class="metric">
+          <span>Recent Routing Accuracy</span>
+          <span class="metric-value" id="recentAccuracy">0%</span>
+        </div>
+        <div class="metric">
+          <span>Cases Until Autonomous</span>
+          <span class="metric-value" id="casesNeeded">10</span>
+        </div>
+        <div class="metric">
+          <span>Direct Routes (No Escalation)</span>
+          <span class="metric-value" id="directRoutes">0</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Charts -->
+    <div class="chart-container">
+      <h3>📊 Learning Curve Over Time</h3>
+      <canvas id="learningChart" width="400" height="100"></canvas>
+    </div>
+
+    <div class="chart-container">
+      <h3>🎯 Escalation Outcomes</h3>
+      <canvas id="escalationChart" width="400" height="100"></canvas>
+    </div>
+
+    <!-- Recent Activity -->
+    <div class="recent-activity">
+      <h3>🕒 Recent Activity</h3>
+      <div id="recentActivity">
+        <!-- Will be populated dynamically -->
+      </div>
+    </div>
+
+    <!-- Vector Store Contents -->
+    <div class="recent-activity">
+      <h3>🗄️ Vector Store Contents</h3>
+      <div id="vectorStoreContents">
+        <!-- Will be populated dynamically -->
+      </div>
+    </div>
+
+    <div class="refresh-indicator" id="refreshIndicator">Data refreshed ✓</div>
+
+    <script>
+      let learningChart, escalationChart;
+      let dashboardData = {};
+
+      // Initialize dashboard
+      document.addEventListener("DOMContentLoaded", async () => {
+        await initializeCharts();
+        await refreshDashboard();
+
+        // Auto-refresh every 30 seconds
+        setInterval(refreshDashboard, 30000);
+      });
+
+      async function initializeCharts() {
+        // Learning curve chart
+        const learningCtx = document
+          .getElementById("learningChart")
+          .getContext("2d");
+        learningChart = new Chart(learningCtx, {
+          type: "line",
+          data: {
+            labels: [],
+            datasets: [
+              {
+                label: "System Accuracy",
+                data: [],
+                borderColor: "#667eea",
+                backgroundColor: "rgba(102, 126, 234, 0.1)",
+                tension: 0.4,
+              },
+              {
+                label: "Vector Store Size",
+                data: [],
+                borderColor: "#764ba2",
+                backgroundColor: "rgba(118, 75, 162, 0.1)",
+                tension: 0.4,
+                yAxisID: "y1",
+              },
+            ],
+          },
+          options: {
+            responsive: true,
+            scales: {
+              y: {
+                beginAtZero: true,
+                max: 100,
+                title: { display: true, text: "Accuracy (%)" },
+              },
+              y1: {
+                type: "linear",
+                display: true,
+                position: "right",
+                title: { display: true, text: "Vector Store Size" },
+              },
+            },
+          },
+        });
+
+        // Escalation outcomes chart
+        const escalationCtx = document
+          .getElementById("escalationChart")
+          .getContext("2d");
+        escalationChart = new Chart(escalationCtx, {
+          type: "doughnut",
+          data: {
+            labels: ["Necessary", "Unnecessary"],
+            datasets: [
+              {
+                data: [0, 0],
+                backgroundColor: ["#dc3545", "#28a745"],
+              },
+            ],
+          },
+          options: {
+            responsive: true,
+            plugins: {
+              legend: { position: "bottom" },
+            },
+          },
+        });
+      }
+
+      async function refreshDashboard() {
+        try {
+          // Fetch all dashboard data
+          const [vectorStats, systemPerf, dashboardMetrics] = await Promise.all(
+            [
+              fetch("/vector_store/stats").then((r) => r.json()),
+              fetch("/system/performance").then((r) => r.json()),
+              fetch("/dashboard/metrics").then((r) => r.json()),
+            ]
+          );
+
+          dashboardData = { vectorStats, systemPerf, dashboardMetrics };
+
+          updateMetrics();
+          updateCharts();
+          updateRecentActivity();
+          updateVectorStoreContents();
+
+          showRefreshIndicator();
+          updateConnectionStatus(true);
+        } catch (error) {
+          console.error("Failed to refresh dashboard:", error);
+          updateConnectionStatus(false);
+        }
+      }
+
+      function updateMetrics() {
+        const { vectorStats, systemPerf, dashboardMetrics } = dashboardData;
+
+        // System metrics
+        document.getElementById("totalConversations").textContent =
+          dashboardMetrics?.total_conversations || 0;
+        document.getElementById("vectorStoreSize").textContent =
+          vectorStats?.total_conversations || 0;
+        document.getElementById("systemAccuracy").textContent = `${(
+          (systemPerf?.performance?.accuracy || 0) * 100
+        ).toFixed(1)}%`;
+        document.getElementById("totalEscalations").textContent =
+          dashboardMetrics?.total_escalations || 0;
+
+        // Escalation metrics
+        const escalationRate = dashboardMetrics?.escalation_rate || 0;
+        const necessaryEscalations =
+          dashboardMetrics?.necessary_escalations || 0;
+        const unnecessaryEscalations =
+          dashboardMetrics?.unnecessary_escalations || 0;
+        const escalationPrecision = dashboardMetrics?.escalation_precision || 0;
+
+        document.getElementById("escalationRate").textContent = `${(
+          escalationRate * 100
+        ).toFixed(1)}%`;
+        document.getElementById("necessaryEscalations").textContent =
+          necessaryEscalations;
+        document.getElementById("unnecessaryEscalations").textContent =
+          unnecessaryEscalations;
+        document.getElementById("escalationPrecision").textContent = `${(
+          escalationPrecision * 100
+        ).toFixed(1)}%`;
+
+        // Learning progress
+        const vectorStoreSize = vectorStats?.total_conversations || 0;
+
+        // System readiness based on vector store coverage (more gradual scale)
+        const readiness = Math.min(100, (vectorStoreSize / 10) * 100);
+        document.getElementById(
+          "readinessProgress"
+        ).style.width = `${readiness}%`;
+        document.getElementById(
+          "readinessProgress"
+        ).textContent = `${readiness.toFixed(0)}%`;
+
+        // Recent routing accuracy (last 5 cases)
+        const totalEscalations = dashboardMetrics?.total_escalations || 0;
+        const recentAccuracy = systemPerf?.performance?.accuracy || 0;
+        document.getElementById("recentAccuracy").textContent = `${(
+          recentAccuracy * 100
+        ).toFixed(1)}%`;
+
+        // Cases needed until system becomes more autonomous (10 cases for good coverage)
+        const casesNeeded = Math.max(0, 10 - vectorStoreSize);
+        document.getElementById("casesNeeded").textContent = casesNeeded;
+
+        // Direct routes (cases that didn't escalate - future metric)
+        const directRoutes = Math.max(
+          0,
+          (dashboardMetrics?.total_conversations || 0) - totalEscalations
+        );
+        document.getElementById("directRoutes").textContent = directRoutes;
+
+        // Route distribution
+        updateRouteDistribution(vectorStats?.routes || {});
+      }
+
+      function updateRouteDistribution(routes) {
+        const container = document.getElementById("routeDistribution");
+        container.innerHTML = "";
+
+        const routeColors = {
+          emergency: "route-emergency",
+          urgent: "route-urgent",
+          routine: "route-routine",
+          self_care: "route-self_care",
+          information: "route-information",
+        };
+
+        const total = Object.values(routes).reduce(
+          (sum, count) => sum + count,
+          0
+        );
+
+        for (const [route, count] of Object.entries(routes)) {
+          const percentage = total > 0 ? ((count / total) * 100).toFixed(1) : 0;
+          const item = document.createElement("div");
+          item.className = "metric";
+          item.innerHTML = `
+                    <span><span class="route-badge ${routeColors[route]}">${route}</span></span>
+                    <span class="metric-value">${count} (${percentage}%)</span>
+                `;
+          container.appendChild(item);
+        }
+
+        if (total === 0) {
+          container.innerHTML =
+            '<div class="metric"><span>No routes learned yet</span></div>';
+        }
+      }
+
+      function updateCharts() {
+        const { dashboardMetrics } = dashboardData;
+
+        // Update learning curve
+        if (dashboardMetrics?.learning_curve) {
+          learningChart.data.labels =
+            dashboardMetrics.learning_curve.timestamps;
+          learningChart.data.datasets[0].data =
+            dashboardMetrics.learning_curve.accuracy;
+          learningChart.data.datasets[1].data =
+            dashboardMetrics.learning_curve.vector_size;
+          learningChart.update();
+        }
+
+        // Update escalation outcomes
+        const necessary = dashboardMetrics?.necessary_escalations || 0;
+        const unnecessary = dashboardMetrics?.unnecessary_escalations || 0;
+        escalationChart.data.datasets[0].data = [necessary, unnecessary];
+        escalationChart.update();
+      }
+
+      function updateRecentActivity() {
+        const container = document.getElementById("recentActivity");
+        const activities =
+          dashboardData.dashboardMetrics?.recent_activity || [];
+
+        container.innerHTML = "";
+
+        if (activities.length === 0) {
+          container.innerHTML =
+            '<div class="activity-item">No recent activity</div>';
+          return;
+        }
+
+        activities.slice(0, 10).forEach((activity) => {
+          const item = document.createElement("div");
+          item.className = "activity-item";
+
+          const outcomeClass =
+            activity.outcome === "necessary"
+              ? "outcome-necessary"
+              : "outcome-unnecessary";
+          const routeClass = `route-${activity.route}`;
+
+          item.innerHTML = `
+                    <span>
+                        <span class="route-badge ${routeClass}">${
+            activity.route
+          }</span>
+                        ${activity.type}: ${activity.description}
+                        <span class="escalation-outcome ${outcomeClass}">${
+            activity.outcome
+          }</span>
+                    </span>
+                    <span class="activity-time">${new Date(
+                      activity.timestamp
+                    ).toLocaleTimeString()}</span>
+                `;
+          container.appendChild(item);
+        });
+      }
+
+      function updateVectorStoreContents() {
+        const container = document.getElementById("vectorStoreContents");
+        const conversations =
+          dashboardData.dashboardMetrics?.vector_conversations || [];
+
+        container.innerHTML = "";
+
+        if (conversations.length === 0) {
+          container.innerHTML =
+            '<div class="vector-store-item">Vector store is empty</div>';
+          return;
+        }
+
+        conversations.forEach((conv, index) => {
+          const item = document.createElement("div");
+          item.className = "vector-store-item";
+          const routeClass = `route-${conv.correct_route}`;
+
+          item.innerHTML = `
+                    <div><strong>Case ${
+                      index + 1
+                    }:</strong> <span class="route-badge ${routeClass}">${
+            conv.correct_route
+          }</span></div>
+                    <div><strong>Symptoms:</strong> ${
+                      conv.symptoms_summary
+                    }</div>
+                    <div><strong>Added:</strong> ${new Date(
+                      conv.timestamp || Date.now()
+                    ).toLocaleString()}</div>
+                `;
+          container.appendChild(item);
+        });
+      }
+
+      function updateConnectionStatus(connected) {
+        const indicator = document.getElementById("connectionStatus");
+        const text = document.getElementById("connectionText");
+
+        if (connected) {
+          indicator.className = "status-indicator status-online";
+          text.textContent = "Connected";
+        } else {
+          indicator.className = "status-indicator status-offline";
+          text.textContent = "Disconnected";
+        }
+      }
+
+      function showRefreshIndicator() {
+        const indicator = document.getElementById("refreshIndicator");
+        indicator.classList.add("show");
+        setTimeout(() => indicator.classList.remove("show"), 2000);
+      }
+
+      async function runDemo() {
+        if (
+          confirm("Run demo scenarios? This will create sample conversations.")
+        ) {
+          try {
+            const response = await fetch("/dashboard/demo", { method: "POST" });
+            if (response.ok) {
+              alert("Demo scenarios completed!");
+              await refreshDashboard();
+            } else {
+              alert("Demo failed. Check server logs.");
+            }
+          } catch (error) {
+            alert("Demo failed: " + error.message);
+          }
+        }
+      }
+
+      async function exportData() {
+        try {
+          const response = await fetch("/dashboard/export");
+          const blob = await response.blob();
+          const url = window.URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.href = url;
+          a.download = `siva_data_${
+            new Date().toISOString().split("T")[0]
+          }.json`;
+          a.click();
+          window.URL.revokeObjectURL(url);
+        } catch (error) {
+          alert("Export failed: " + error.message);
+        }
+      }
+
+      async function resetSystem() {
+        if (confirm("Reset all system data? This cannot be undone.")) {
+          try {
+            const response = await fetch("/dashboard/reset", {
+              method: "POST",
+            });
+            if (response.ok) {
+              alert("System reset successfully!");
+              await refreshDashboard();
+            } else {
+              alert("Reset failed. Check server logs.");
+            }
+          } catch (error) {
+            alert("Reset failed: " + error.message);
+          }
+        }
+      }
+    </script>
+  </body>
+</html>

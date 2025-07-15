@@ -7,3 +7,4 @@ openai
 sounddevice
 numpy
 playsound
+scikit-learn
