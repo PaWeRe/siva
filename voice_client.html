@@ -125,6 +125,116 @@
         font-size: 0.8em;
         color: #6c757d;
       }
+
+      /* Escalation Modal Styles */
+      .escalation-modal {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0, 0, 0, 0.5);
+        z-index: 1000;
+        justify-content: center;
+        align-items: center;
+      }
+
+      .escalation-content {
+        background: white;
+        border-radius: 15px;
+        padding: 30px;
+        max-width: 500px;
+        width: 90%;
+        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
+        text-align: center;
+      }
+
+      .escalation-title {
+        color: #333;
+        margin-bottom: 20px;
+        font-size: 1.5em;
+      }
+
+      .agent-prediction {
+        background: #f8f9fa;
+        border-radius: 10px;
+        padding: 15px;
+        margin: 15px 0;
+        border-left: 4px solid #007bff;
+      }
+
+      .prediction-label {
+        font-weight: bold;
+        color: #007bff;
+        margin-bottom: 5px;
+      }
+
+      .prediction-route {
+        font-size: 1.2em;
+        color: #333;
+        margin-bottom: 10px;
+      }
+
+      .prediction-reasoning {
+        color: #666;
+        font-style: italic;
+      }
+
+      .human-feedback {
+        margin: 20px 0;
+      }
+
+      .feedback-label {
+        font-weight: bold;
+        margin-bottom: 10px;
+        color: #333;
+      }
+
+      .route-select {
+        width: 100%;
+        padding: 10px;
+        border: 2px solid #ddd;
+        border-radius: 8px;
+        font-size: 1em;
+        margin-bottom: 20px;
+      }
+
+      .escalation-buttons {
+        display: flex;
+        gap: 10px;
+        justify-content: center;
+      }
+
+      .submit-feedback-btn {
+        background: #28a745;
+        color: white;
+        border: none;
+        padding: 12px 25px;
+        border-radius: 8px;
+        font-size: 1em;
+        cursor: pointer;
+        transition: background 0.3s;
+      }
+
+      .submit-feedback-btn:hover {
+        background: #218838;
+      }
+
+      .cancel-feedback-btn {
+        background: #6c757d;
+        color: white;
+        border: none;
+        padding: 12px 25px;
+        border-radius: 8px;
+        font-size: 1em;
+        cursor: pointer;
+        transition: background 0.3s;
+      }
+
+      .cancel-feedback-btn:hover {
+        background: #5a6268;
+      }
     </style>
   </head>
   <body>
@@ -136,6 +246,40 @@
         Checking backend...
       </div>
       <div id="sessionInfo" class="session-info"></div>
+    </div>
+
+    <!-- Escalation Modal -->
+    <div id="escalationModal" class="escalation-modal">
+      <div class="escalation-content">
+        <h2 class="escalation-title">🏥 Human Expert Review Required</h2>
+
+        <div class="agent-prediction">
+          <div class="prediction-label">Agent's Prediction:</div>
+          <div id="agentRoute" class="prediction-route"></div>
+          <div id="agentReasoning" class="prediction-reasoning"></div>
+        </div>
+
+        <div class="human-feedback">
+          <div class="feedback-label">Human Expert Decision:</div>
+          <select id="humanRoute" class="route-select">
+            <option value="">Select correct route...</option>
+            <option value="emergency">Emergency Care</option>
+            <option value="urgent">Urgent Care</option>
+            <option value="routine">Routine Care</option>
+            <option value="self_care">Self Care</option>
+            <option value="information">Information Only</option>
+          </select>
+        </div>
+
+        <div class="escalation-buttons">
+          <button id="submitFeedback" class="submit-feedback-btn">
+            Submit Feedback
+          </button>
+          <button id="cancelFeedback" class="cancel-feedback-btn">
+            Cancel
+          </button>
+        </div>
+      </div>
     </div>
 
     <script>
@@ -153,6 +297,15 @@
           this.callButton = document.getElementById("callButton");
           this.connectionStatus = document.getElementById("connectionStatus");
           this.sessionInfo = document.getElementById("sessionInfo");
+
+          // Escalation modal elements
+          this.escalationModal = document.getElementById("escalationModal");
+          this.agentRoute = document.getElementById("agentRoute");
+          this.agentReasoning = document.getElementById("agentReasoning");
+          this.humanRoute = document.getElementById("humanRoute");
+          this.submitFeedback = document.getElementById("submitFeedback");
+          this.cancelFeedback = document.getElementById("cancelFeedback");
+          this.currentEscalationData = null;
 
           this.initializeClient();
         }
@@ -210,6 +363,15 @@
             } else {
               this.startCall();
             }
+          });
+
+          // Escalation modal event listeners
+          this.submitFeedback.addEventListener("click", () => {
+            this.submitEscalationFeedback();
+          });
+
+          this.cancelFeedback.addEventListener("click", () => {
+            this.hideEscalationModal();
           });
         }
 
@@ -294,7 +456,25 @@
           }
 
           this.log(response.reply, "agent");
-          this.updateStatus("Agent speaking...", "speaking");
+
+          // Check for escalation
+          if (response.escalation) {
+            this.log("Case escalated for human review", "system");
+            this.currentEscalationData = response.escalation;
+
+            // Play TTS first, then show escalation modal
+            this.updateStatus("Agent speaking...", "speaking");
+            this.isSpeaking = true;
+            await this.playTTS(response.reply);
+            this.isSpeaking = false;
+
+            // Show escalation modal
+            this.showEscalationModal(response.escalation);
+            return;
+          }
+
+          // Show 'Agent thinking...' while waiting for TTS audio to start
+          this.updateStatus("Agent thinking...", "processing");
           this.isSpeaking = true;
 
           await this.playTTS(response.reply);
@@ -303,6 +483,10 @@
 
           if (response.end_call) {
             this.log("Agent indicated call should end", "system");
+            this.updateStatus(
+              "Call completed - routing to appropriate department",
+              "processing"
+            );
             this.endCall();
             return;
           }
@@ -316,6 +500,7 @@
             const ws = new WebSocket("ws://localhost:8000/ws/tts");
             const audioChunks = [];
             let hasReceivedData = false;
+            let playbackStarted = false;
 
             // Add timeout to prevent hanging
             const timeout = setTimeout(() => {
@@ -333,6 +518,8 @@
               if (event.data instanceof Blob) {
                 audioChunks.push(event.data);
                 hasReceivedData = true;
+                // While receiving audio chunks, keep status as 'Agent thinking...'
+                this.updateStatus("Agent thinking...", "processing");
                 this.log(
                   `Received TTS chunk ${audioChunks.length}: ${event.data.size} bytes`,
                   "system"
@@ -377,11 +564,16 @@
                     source.buffer = audioBuffer;
                     source.connect(audioContext.destination);
 
+                    // Switch to 'Agent speaking...' only when playback actually starts
                     source.onended = () => {
                       this.log("TTS playback finished", "system");
                       resolve();
                     };
-
+                    source.onplay = () => {
+                      this.updateStatus("Agent speaking...", "speaking");
+                    };
+                    // Fallback: update status right before start
+                    this.updateStatus("Agent speaking...", "speaking");
                     source.start();
                   } else {
                     this.log("Empty audio buffer received", "error");
@@ -588,6 +780,80 @@
               resolve(""); // Return empty string on error instead of rejecting
             };
           });
+        }
+
+        showEscalationModal(escalationData) {
+          this.log("Showing escalation modal for human review", "system");
+
+          // Populate modal with agent's prediction
+          this.agentRoute.textContent =
+            escalationData.agent_prediction.toUpperCase();
+          this.agentReasoning.textContent =
+            escalationData.reasoning || "No reasoning provided";
+
+          // Reset human selection
+          this.humanRoute.value = "";
+
+          // Show modal
+          this.escalationModal.style.display = "flex";
+          this.updateStatus("Awaiting human expert review...", "processing");
+        }
+
+        hideEscalationModal() {
+          this.escalationModal.style.display = "none";
+          this.currentEscalationData = null;
+          this.endCall(); // End call when modal is closed
+        }
+
+        async submitEscalationFeedback() {
+          const humanLabel = this.humanRoute.value;
+
+          if (!humanLabel) {
+            alert("Please select the correct route before submitting.");
+            return;
+          }
+
+          if (!this.currentEscalationData) {
+            alert("No escalation data available.");
+            return;
+          }
+
+          try {
+            this.log(`Human expert selected: ${humanLabel}`, "system");
+
+            // Send feedback to backend
+            const response = await fetch(
+              "http://localhost:8000/escalation/feedback",
+              {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  session_id: this.sessionId,
+                  agent_prediction: this.currentEscalationData.agent_prediction,
+                  human_label: humanLabel,
+                }),
+              }
+            );
+
+            if (!response.ok) {
+              throw new Error(`Feedback API error: ${response.status}`);
+            }
+
+            const result = await response.json();
+            this.log("Feedback submitted successfully", "system");
+            this.log(
+              `Training example ${
+                result.training_added ? "added" : "not added"
+              } to vector store`,
+              "system"
+            );
+
+            // Hide modal and end call
+            this.hideEscalationModal();
+          } catch (error) {
+            this.log(`Error submitting feedback: ${error.message}`, "error");
+            alert("Error submitting feedback. Please try again.");
+          }
         }
       }
 
