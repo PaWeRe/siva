@@ -23,7 +23,7 @@ A modular, **self-improving voice agent framework** that **learns from expert fe
 
 3. **Launch the Voice Agent:**
    ```bash
-   python run_voice_app.py
+   uv run python run_voice_app.py
    ```
    Opens the voice client at [http://localhost:3000/voice_client.html](http://localhost:3000/voice_client.html) and dashboard at [http://localhost:8000/dashboard](http://localhost:8000/dashboard) 
 
@@ -87,56 +87,24 @@ A modular, **self-improving voice agent framework** that **learns from expert fe
 
 Real-time dashboard tracking: total conversations, vector store size, system accuracy, route distribution, learning progress, and recent activity. Access at [http://localhost:8000/dashboard](http://localhost:8000/dashboard) (auto-opens when using `run_voice_app.py`).
 
-## 🛠 Development & Testing
-
-**Debug Conversations** (without voice):
-```bash
-python debug_conversation.py
-```
-
-**Learning Progression Demo**:
-```bash
-python learning_demo.py
-```
-
-**Separate Server Mode**:
-```bash
-# Terminal 1 - Backend
-uvicorn main:app --host localhost --port 8000 --reload
-
-# Terminal 2 - Voice Client  
-python serve_client.py
-```
 
 ## 📁 Project Structure
 
 ```
 siva/
-├── main.py                    # FastAPI backend with domain-agnostic routing
-├── run_voice_app.py           # Unified launcher
+├── main.py                    # FastAPI backend
+├── run_voice_app.py           # Main launcher
+├── serve_client.py            # Voice client server
 ├── voice_client.html          # Voice interface
+├── dashboard.html             # Performance monitoring
 ├── vector_store.py            # Experience-based evidence storage
 ├── llm_judge.py               # Evaluation and knowledge extraction
 ├── data_manager.py            # Persistent data storage
-├── learning_demo.py           # Improvement demonstration
-├── dashboard.html             # Performance & learning intelligence monitoring
-├── framework/                 # Core framework components
-│   ├── config.py              # Framework configuration
-│   ├── domain_knowledge_adapter.py # Domain-specific knowledge integration
-│   ├── dual_purpose_vector_store.py # Enhanced vector storage
-│   ├── learning_pipeline.py   # Core learning mechanisms
-│   └── voice_interface.py     # Voice processing utilities
-├── applications/              # Domain-specific implementations
-│   ├── clinical_pearls/       # Medical use case
-│   │   ├── clinical_pearls_app.py
-│   │   └── openevidence_simple.py
-│   └── patient_intake/        # Patient intake system
-│       └── patient_intake_app.py
-├── examples/                  # Framework usage examples
-│   ├── framework_demo.py      # General framework demonstration
-│   └── simple_framework_demo.py
-├── intake_logs/               # Conversation history
-└── siva_data/                # Learning database + knowledge pearls
+├── requirements.txt           # Python dependencies
+├── assets/                    # Media files
+│   ├── siva_demo_10x.gif      # Demo recording
+│   └── flowchart_self_learning_agent.jpeg # conceptual overview 
+└── siva_data/                 # Learning database + knowledge pearls
 ```
 
 

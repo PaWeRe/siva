@@ -16,7 +16,7 @@ from data_manager import DataManager
 
 app = FastAPI()
 
-# Allow CORS for local Gradio frontend
+# Allow CORS for voice client frontend
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
