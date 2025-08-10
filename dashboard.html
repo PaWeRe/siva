@@ -186,23 +186,6 @@
         background: #6c757d;
       }
 
-      .escalation-outcome {
-        padding: 3px 8px;
-        border-radius: 12px;
-        font-size: 0.8em;
-        font-weight: bold;
-      }
-
-      .outcome-necessary {
-        background: #f8d7da;
-        color: #721c24;
-      }
-
-      .outcome-unnecessary {
-        background: #d4edda;
-        color: #155724;
-      }
-
       .refresh-indicator {
         position: fixed;
         top: 20px;
@@ -279,31 +262,6 @@
           <span>System Accuracy</span>
           <span class="metric-value" id="systemAccuracy">0%</span>
         </div>
-        <div class="metric">
-          <span>Total Escalations</span>
-          <span class="metric-value" id="totalEscalations">0</span>
-        </div>
-      </div>
-
-      <!-- Escalation Metrics -->
-      <div class="card">
-        <h3>🚨 Escalation Analysis</h3>
-        <div class="metric">
-          <span>Escalation Rate</span>
-          <span class="metric-value" id="escalationRate">0%</span>
-        </div>
-        <div class="metric">
-          <span>Necessary Escalations</span>
-          <span class="metric-value" id="necessaryEscalations">0</span>
-        </div>
-        <div class="metric">
-          <span>Unnecessary Escalations</span>
-          <span class="metric-value" id="unnecessaryEscalations">0</span>
-        </div>
-        <div class="metric">
-          <span>Escalation Precision</span>
-          <span class="metric-value" id="escalationPrecision">0%</span>
-        </div>
       </div>
 
       <!-- Route Distribution -->
@@ -348,11 +306,6 @@
       <canvas id="learningChart" width="400" height="100"></canvas>
     </div>
 
-    <div class="chart-container">
-      <h3>🎯 Escalation Outcomes</h3>
-      <canvas id="escalationChart" width="400" height="100"></canvas>
-    </div>
-
     <!-- Recent Activity -->
     <div class="recent-activity">
       <h3>🕒 Recent Activity</h3>
@@ -372,7 +325,7 @@
     <div class="refresh-indicator" id="refreshIndicator">Data refreshed ✓</div>
 
     <script>
-      let learningChart, escalationChart;
+      let learningChart;
       let dashboardData = {};
 
       // Initialize dashboard
@@ -428,29 +381,6 @@
             },
           },
         });
-
-        // Escalation outcomes chart
-        const escalationCtx = document
-          .getElementById("escalationChart")
-          .getContext("2d");
-        escalationChart = new Chart(escalationCtx, {
-          type: "doughnut",
-          data: {
-            labels: ["Necessary", "Unnecessary"],
-            datasets: [
-              {
-                data: [0, 0],
-                backgroundColor: ["#dc3545", "#28a745"],
-              },
-            ],
-          },
-          options: {
-            responsive: true,
-            plugins: {
-              legend: { position: "bottom" },
-            },
-          },
-        });
       }
 
       async function refreshDashboard() {
@@ -490,27 +420,8 @@
         document.getElementById("systemAccuracy").textContent = `${(
           (systemPerf?.performance?.accuracy || 0) * 100
         ).toFixed(1)}%`;
-        document.getElementById("totalEscalations").textContent =
-          dashboardMetrics?.total_escalations || 0;
-
-        // Escalation metrics
-        const escalationRate = dashboardMetrics?.escalation_rate || 0;
-        const necessaryEscalations =
-          dashboardMetrics?.necessary_escalations || 0;
-        const unnecessaryEscalations =
-          dashboardMetrics?.unnecessary_escalations || 0;
-        const escalationPrecision = dashboardMetrics?.escalation_precision || 0;
-
-        document.getElementById("escalationRate").textContent = `${(
-          escalationRate * 100
-        ).toFixed(1)}%`;
-        document.getElementById("necessaryEscalations").textContent =
-          necessaryEscalations;
-        document.getElementById("unnecessaryEscalations").textContent =
-          unnecessaryEscalations;
-        document.getElementById("escalationPrecision").textContent = `${(
-          escalationPrecision * 100
-        ).toFixed(1)}%`;
+        document.getElementById("totalConversations").textContent =
+          dashboardMetrics?.total_conversations || 0;
 
         // Learning progress
         const vectorStoreSize = vectorStats?.total_conversations || 0;
@@ -525,7 +436,6 @@
         ).textContent = `${readiness.toFixed(0)}%`;
 
         // Recent routing accuracy (last 5 cases)
-        const totalEscalations = dashboardMetrics?.total_escalations || 0;
         const recentAccuracy = systemPerf?.performance?.accuracy || 0;
         document.getElementById("recentAccuracy").textContent = `${(
           recentAccuracy * 100
@@ -536,10 +446,7 @@
         document.getElementById("casesNeeded").textContent = casesNeeded;
 
         // Direct routes (cases that didn't escalate - future metric)
-        const directRoutes = Math.max(
-          0,
-          (dashboardMetrics?.total_conversations || 0) - totalEscalations
-        );
+        const directRoutes = dashboardMetrics?.total_conversations || 0;
         document.getElementById("directRoutes").textContent = directRoutes;
 
         // Route distribution
@@ -593,12 +500,6 @@
             dashboardMetrics.learning_curve.vector_size;
           learningChart.update();
         }
-
-        // Update escalation outcomes
-        const necessary = dashboardMetrics?.necessary_escalations || 0;
-        const unnecessary = dashboardMetrics?.unnecessary_escalations || 0;
-        escalationChart.data.datasets[0].data = [necessary, unnecessary];
-        escalationChart.update();
       }
 
       function updateRecentActivity() {
@@ -618,10 +519,6 @@
           const item = document.createElement("div");
           item.className = "activity-item";
 
-          const outcomeClass =
-            activity.outcome === "necessary"
-              ? "outcome-necessary"
-              : "outcome-unnecessary";
           const routeClass = `route-${activity.route}`;
 
           item.innerHTML = `
@@ -630,9 +527,6 @@
             activity.route
           }</span>
                         ${activity.type}: ${activity.description}
-                        <span class="escalation-outcome ${outcomeClass}">${
-            activity.outcome
-          }</span>
                     </span>
                     <span class="activity-time">${new Date(
                       activity.timestamp

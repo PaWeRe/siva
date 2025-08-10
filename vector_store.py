@@ -3,7 +3,7 @@
 import os
 import json
 import numpy as np
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Tuple
 from openai import OpenAI
 from datetime import datetime
 from pathlib import Path
@@ -84,6 +84,7 @@ class VectorStore:
         conversation_messages: List[Dict],
         correct_route: str,
         symptoms_summary: str = None,
+        session_id: str = None,
     ):
         """Add a human-verified conversation to the vector store."""
         conversation_text = self.get_conversation_text(conversation_messages)
@@ -91,6 +92,15 @@ class VectorStore:
         if not conversation_text.strip():
             print("[VectorStore] Empty conversation text, skipping")
             return
+
+        # Check for duplicates if session_id is provided
+        if session_id:
+            for existing_conv in self.conversations:
+                if existing_conv.get("session_id") == session_id:
+                    print(
+                        f"[VectorStore] Conversation for session {session_id} already exists, skipping"
+                    )
+                    return
 
         embedding = self.get_embedding(conversation_text)
         if not embedding:
@@ -105,11 +115,14 @@ class VectorStore:
             "embedding": embedding,
             "messages": conversation_messages,
             "timestamp": datetime.now().isoformat(),
+            "session_id": session_id,
         }
 
         self.conversations.append(conversation_entry)
         self.save_data()
-        print(f"[VectorStore] Added labeled case: {correct_route}")
+        print(
+            f"[VectorStore] Added labeled case: {correct_route} (session: {session_id})"
+        )
 
     def retrieve_similar(
         self, current_conversation: List[Dict], k: int = 5

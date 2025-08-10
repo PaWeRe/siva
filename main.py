@@ -4,7 +4,7 @@ import os
 from dotenv import load_dotenv
 from fastapi import FastAPI, Request, WebSocket
 from pydantic import BaseModel
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Tuple
 import openai
 from openai import OpenAI
 from fastapi.middleware.cors import CORSMiddleware
@@ -41,6 +41,9 @@ data_manager = DataManager()
 # Simple in-memory session store (for demo purposes)
 sessions: Dict[str, Dict[str, Any]] = {}
 
+# Global application mode
+current_mode = "patient_intake"  # "patient_intake" or "clinical_pearls"
+
 SONIC_MODEL_ID = "sonic-2"
 VOICE_ID = (
     "5c43e078-5ba4-4e1f-9639-8d85a403f76a"  # Replace with your preferred voice id
@@ -56,6 +59,26 @@ class EscalationFeedback(BaseModel):
     session_id: str
     agent_prediction: str
     human_label: str
+
+
+class ModeRequest(BaseModel):
+    mode: str
+
+
+class PearlExtractionRequest(BaseModel):
+    session_id: str
+    transcript: str
+
+
+class PearlValidationRequest(BaseModel):
+    session_id: str
+    pearl_data: Dict[str, Any]
+    physician_id: str
+
+
+class PearlOutcomeRequest(BaseModel):
+    pearl_id: str
+    outcome_data: Dict[str, Any]
 
 
 # Minimal function schema for OpenAI function calling
@@ -216,18 +239,26 @@ function_schemas = [
 ]
 
 
-# Enhanced IntakeProcessor with routing and escalation capabilities
-class IntakeProcessor:
+# Enhanced UnifiedProcessor with routing and escalation capabilities
+class UnifiedProcessor:
     def __init__(self, session: Dict[str, Any]):
         self.session = session
         self.vector_store = vector_store
         self.llm_judge = llm_judge
 
-        # Initialize session with phase tracking
+        # Initialize session with mode and phase tracking
+        if "mode" not in self.session:
+            self.session["mode"] = current_mode
+
         if "phase" not in self.session:
-            self.session["phase"] = (
-                "basic_intake"  # basic_intake -> detailed_symptoms -> routing
-            )
+            if self.session["mode"] == "patient_intake":
+                self.session["phase"] = (
+                    "basic_intake"  # basic_intake -> detailed_symptoms -> routing
+                )
+            else:  # physician_consultation
+                self.session["phase"] = (
+                    "recording"  # recording -> extraction -> validation
+                )
 
         if "messages" not in self.session:
             self.session["messages"] = [
@@ -239,9 +270,40 @@ class IntakeProcessor:
             self.session["escalation_data"] = {}
 
     def _get_system_prompt(self) -> str:
-        """Get system prompt based on current phase."""
+        """Get system prompt based on current mode and phase."""
+        mode = self.session.get("mode", "patient_intake")
         phase = self.session.get("phase", "basic_intake")
 
+        if mode == "physician_consultation":
+            return self._get_physician_consultation_prompt(phase)
+        else:  # patient_intake
+            return self._get_patient_intake_prompt(phase)
+
+    def _get_physician_consultation_prompt(self, phase: str) -> str:
+        """Get system prompt for physician consultation mode."""
+        if phase == "recording":
+            return (
+                "You are a Clinical Observer, silently recording a physician-patient conversation. "
+                "Your role is to provide real-time clinical decision support without interrupting the conversation. "
+                "DO NOT SPEAK OR RESPOND VERBALLY. Only provide silent analysis and suggestions. "
+                "Focus on: symptom analysis, differential diagnosis, medication interactions, and evidence-based recommendations. "
+                "Extract clinical insights and display them on screen for the physician's reference. "
+                "Your responses should be internal analysis only - never spoken to the patient or physician."
+            )
+        elif phase == "extraction":
+            return (
+                "You are extracting clinical insights from the recorded conversation. "
+                "Identify: patient presentation, physician decision, clinical reasoning, and key factors. "
+                "Structure the information clearly for physician review and learning."
+            )
+        else:  # validation
+            return (
+                "You are presenting the extracted clinical insights for physician validation. "
+                "Format the information clearly and request approval or modifications."
+            )
+
+    def _get_patient_intake_prompt(self, phase: str) -> str:
+        """Get system prompt for patient intake mode."""
         if phase == "basic_intake":
             return (
                 "You are John, an agent for Tsidi Health Services. "
@@ -356,9 +418,32 @@ Use the determine_routing function to make your decision."""
         """Determine if case should be escalated based on retrieval threshold."""
         similar_count = self.vector_store.count_similar_cases(self.session["messages"])
         print(
-            f"[IntakeProcessor] Found {similar_count} similar cases, threshold: {RETRIEVAL_THRESHOLD}"
+            f"[UnifiedProcessor] Found {similar_count} similar cases, threshold: {RETRIEVAL_THRESHOLD}"
         )
         return similar_count < RETRIEVAL_THRESHOLD
+
+    def _calculate_confidence(
+        self, similar_cases: List[Tuple[Dict, float]], domain_evidence: Dict[str, Any]
+    ) -> float:
+        """Calculate combined confidence based on similar cases and medical literature."""
+        # Calculate confidence from similar cases
+        num_similar = len(similar_cases)
+        case_confidence = 0.0
+        if num_similar >= RETRIEVAL_THRESHOLD:
+            case_confidence = min(1.0, num_similar / (RETRIEVAL_THRESHOLD * 2))
+        else:
+            case_confidence = num_similar / RETRIEVAL_THRESHOLD
+
+        # Calculate confidence from medical literature
+        literature_evidence = domain_evidence.get("evidence", [])
+        literature_confidence = min(
+            1.0, len(literature_evidence) / 3.0
+        )  # Max confidence with 3+ literature items
+
+        # Combine confidence (weighted average: 60% cases, 40% literature)
+        combined_confidence = (case_confidence * 0.6) + (literature_confidence * 0.4)
+
+        return combined_confidence
 
     def next_prompt(
         self, user_message: Optional[str] = None
@@ -475,6 +560,276 @@ Use the determine_routing function to make your decision."""
     def get_escalation_data(self) -> Dict[str, Any]:
         return self.session.get("escalation_data", {})
 
+    def get_real_time_evidence(self) -> Dict[str, Any]:
+        """Get real-time evidence for display panel."""
+        mode = self.session.get("mode", "patient_intake")
+
+        if mode == "patient_intake":
+            return self._get_patient_intake_evidence()
+        else:  # physician_consultation
+            return self._get_physician_consultation_evidence()
+
+    def _get_patient_intake_evidence(self) -> Dict[str, Any]:
+        """Get evidence for patient intake mode."""
+        phase = self.session.get("phase", "basic_intake")
+        data = self.session.get("data", {})
+
+        # Always show extracted data from the start
+        extracted_data = data
+
+        # Show evidence after visit reasons are collected (not after detailed symptoms)
+        has_visit_reasons = "visit_reasons" in data and data["visit_reasons"]
+
+        if phase == "basic_intake" and not has_visit_reasons:
+            return {
+                "similar_cases": [],
+                "medical_literature": [],
+                "search_terms": [],
+                "extracted_data": extracted_data,
+                "confidence": 0.0,
+                "confidence_breakdown": {
+                    "case_confidence": 0.0,
+                    "literature_confidence": 0.0,
+                },
+                "evidence_ready": False,
+                "message": "Medical evidence will appear once visit reason is provided...",
+            }
+
+        # Get similar cases from vector store
+        similar_cases = self.vector_store.retrieve_similar(self.session["messages"])
+
+        # Get domain evidence (medical literature)
+        domain_evidence = self._get_domain_evidence()
+
+        return {
+            "similar_cases": [
+                {
+                    "symptoms": case.get("symptoms_summary", "Unknown"),
+                    "route": case.get("correct_route", "Unknown"),
+                    "similarity": score,
+                }
+                for case, score in similar_cases[:3]  # Top 3 similar cases
+            ],
+            "medical_literature": domain_evidence.get("evidence", []),
+            "search_terms": domain_evidence.get("search_terms", []),
+            "extracted_data": extracted_data,
+            "confidence": self._calculate_confidence(similar_cases, domain_evidence),
+            "confidence_breakdown": {
+                "case_confidence": min(1.0, len(similar_cases) / RETRIEVAL_THRESHOLD),
+                "literature_confidence": min(
+                    1.0, len(domain_evidence.get("evidence", [])) / 3.0
+                ),
+            },
+            "evidence_ready": True,
+        }
+
+    def _get_physician_consultation_evidence(self) -> Dict[str, Any]:
+        """Get evidence for physician consultation mode."""
+        # Get similar clinical cases
+        similar_cases = self.vector_store.retrieve_similar(self.session["messages"])
+
+        # Get domain evidence (medical literature)
+        domain_evidence = self._get_domain_evidence()
+
+        return {
+            "similar_cases": [
+                {
+                    "presentation": case.get("patient_presentation", "Unknown"),
+                    "decision": case.get("physician_decision", "Unknown"),
+                    "similarity": score,
+                }
+                for case, score in similar_cases[:3]  # Top 3 similar cases
+            ],
+            "medical_literature": domain_evidence.get("evidence", []),
+            "search_terms": domain_evidence.get("search_terms", []),
+            "extracted_data": self.session.get("data", {}),
+            "confidence": self._calculate_confidence(similar_cases, domain_evidence),
+            "confidence_breakdown": {
+                "case_confidence": min(1.0, len(similar_cases) / RETRIEVAL_THRESHOLD),
+                "literature_confidence": min(
+                    1.0, len(domain_evidence.get("evidence", [])) / 3.0
+                ),
+            },
+        }
+
+    def _get_domain_evidence(self) -> Dict[str, Any]:
+        """Get domain evidence from medical literature (mocked OpenEvidence API)."""
+        try:
+            # Extract key terms from conversation for literature search
+            conversation_text = " ".join(
+                [
+                    msg.get("content", "")
+                    for msg in self.session.get("messages", [])
+                    if msg.get("role") == "user"
+                ]
+            ).lower()
+
+            # Extract patient data for more targeted literature search
+            patient_data = self.session.get("data", {})
+            visit_reasons = patient_data.get("visit_reasons", [])
+
+            # Mock OpenEvidence API response based on conversation content and visit reasons
+            evidence_items = []
+
+            # Check visit reasons first for initial recommendations
+            if visit_reasons:
+                for reason in visit_reasons:
+                    reason_lower = reason.lower()
+
+                    if "chest pain" in reason_lower:
+                        evidence_items.extend(
+                            [
+                                "Chest pain evaluation guidelines: Immediate assessment for cardiac causes",
+                                "Risk stratification for chest pain: Consider age, risk factors, and presentation",
+                                "Atypical chest pain patterns require comprehensive cardiac workup",
+                            ]
+                        )
+
+                    elif "headache" in reason_lower:
+                        evidence_items.extend(
+                            [
+                                "Headache classification: Primary vs secondary headache evaluation",
+                                "Red flag symptoms for headache: Sudden onset, fever, neurological deficits",
+                                "Migraine vs tension headache: Clinical differentiation guidelines",
+                            ]
+                        )
+
+                    elif "fever" in reason_lower:
+                        evidence_items.extend(
+                            [
+                                "Fever evaluation in adults: Focus on duration and associated symptoms",
+                                "Infectious vs non-infectious fever: Diagnostic approach",
+                                "Fever with rash: Consider viral exanthems and drug reactions",
+                            ]
+                        )
+
+                    elif (
+                        "shortness of breath" in reason_lower
+                        or "breathing" in reason_lower
+                    ):
+                        evidence_items.extend(
+                            [
+                                "Dyspnea evaluation: Cardiac vs pulmonary vs systemic causes",
+                                "Acute dyspnea: Immediate assessment for life-threatening conditions",
+                                "Chronic dyspnea: Systematic approach to diagnosis",
+                            ]
+                        )
+
+                    elif "abdominal pain" in reason_lower:
+                        evidence_items.extend(
+                            [
+                                "Acute abdominal pain: Surgical vs medical causes",
+                                "Abdominal pain localization: Organ-specific differential diagnosis",
+                                "Chronic abdominal pain: Functional vs organic causes",
+                            ]
+                        )
+
+            # Check for specific medical conditions and symptoms in conversation
+            if "rash" in conversation_text:
+                evidence_items.extend(
+                    [
+                        "Rash evaluation guidelines: Consider drug reactions, infections, and autoimmune conditions",
+                        "Drug-induced rash in cancer patients requires immediate evaluation for Stevens-Johnson syndrome",
+                        "Immunocompromised patients with rash need urgent assessment for opportunistic infections",
+                    ]
+                )
+
+            if "prostate cancer" in conversation_text or "cancer" in conversation_text:
+                evidence_items.extend(
+                    [
+                        "Cancer patients on treatment require careful monitoring for drug interactions",
+                        "Immunosuppression from cancer therapy increases infection risk",
+                        "Medication side effects in cancer patients can mimic serious conditions",
+                    ]
+                )
+
+            if "medication" in conversation_text or "prescription" in conversation_text:
+                evidence_items.extend(
+                    [
+                        "Drug reaction monitoring is critical in patients on multiple medications",
+                        "Medication interactions can cause unexpected symptoms and rashes",
+                        "Regular medication review reduces adverse drug events",
+                    ]
+                )
+
+            if "chest pain" in conversation_text:
+                evidence_items.extend(
+                    [
+                        "Chest pain guidelines recommend immediate evaluation for patients with risk factors",
+                        "Atypical chest pain in cancer patients requires cardiac evaluation",
+                        "Drug-induced chest pain should be evaluated for cardiac toxicity",
+                    ]
+                )
+
+            if (
+                "shortness of breath" in conversation_text
+                or "breathing" in conversation_text
+            ):
+                evidence_items.extend(
+                    [
+                        "Dyspnea in cancer patients requires evaluation for pulmonary embolism",
+                        "Drug-induced pulmonary toxicity is common in cancer therapy",
+                        "Respiratory symptoms with rash suggest serious drug reaction",
+                    ]
+                )
+
+            # Add general evidence if no specific conditions found
+            if not evidence_items:
+                evidence_items = [
+                    "Patient history and medication review essential for accurate diagnosis",
+                    "New symptoms in patients with chronic conditions require thorough evaluation",
+                    "Drug interactions and side effects common in patients on multiple medications",
+                ]
+
+            return {
+                "evidence": evidence_items,
+                "source": "OpenEvidence API",
+                "search_terms": self._extract_search_terms(
+                    conversation_text, patient_data
+                ),
+            }
+        except Exception as e:
+            return {"evidence": [], "error": str(e)}
+
+    def _extract_search_terms(
+        self, conversation_text: str, patient_data: Dict[str, Any]
+    ) -> List[str]:
+        """Extract relevant search terms for literature search."""
+        terms = []
+
+        # Extract visit reasons first (most important for initial search)
+        if "visit_reasons" in patient_data:
+            terms.extend(patient_data["visit_reasons"])
+
+        # Extract symptoms from conversation
+        symptom_keywords = [
+            "rash",
+            "pain",
+            "fever",
+            "cough",
+            "shortness of breath",
+            "nausea",
+            "fatigue",
+            "headache",
+            "chest pain",
+            "abdominal pain",
+        ]
+        for keyword in symptom_keywords:
+            if keyword in conversation_text:
+                terms.append(keyword)
+
+        # Extract conditions from patient data
+        if "conditions" in patient_data:
+            terms.extend(patient_data["conditions"])
+
+        # Extract medications
+        if "prescriptions" in patient_data:
+            for med in patient_data["prescriptions"]:
+                if isinstance(med, dict) and "medication" in med:
+                    terms.append(med["medication"])
+
+        return terms[:5]  # Limit to top 5 terms
+
 
 @app.post("/chat")
 async def chat(user_message: UserMessage):
@@ -489,7 +844,7 @@ async def chat(user_message: UserMessage):
         session["created_at"] = datetime.datetime.now().isoformat()
     session["last_activity"] = datetime.datetime.now().isoformat()
 
-    processor = IntakeProcessor(session)
+    processor = UnifiedProcessor(session)
 
     # Get response with potential escalation info
     reply, end_call, escalation_info = processor.next_prompt(user_message.message)
@@ -510,12 +865,58 @@ async def chat(user_message: UserMessage):
         }
         data_manager.save_conversation(user_message.session_id, conversation_data)
 
-    response = {
-        "reply": reply,
-        "history": processor.get_history(),
-        "data": processor.get_data(),
-        "end_call": end_call,
-    }
+        # Automatically add completed conversations to vector store for learning
+        # This ensures we build up our knowledge base even without human feedback
+        try:
+            conversation = processor.get_history()
+            data = processor.get_data()
+
+            # Only add if we have routing information
+            if "routing" in data and data["routing"]:
+                routing = data["routing"]
+                if isinstance(routing, dict) and "route" in routing:
+                    correct_route = routing["route"]
+
+                    # Create symptoms summary
+                    symptoms_summary = llm_judge.extract_symptoms_summary(conversation)
+
+                    # Add to vector store
+                    vector_store.add_labeled_case(
+                        conversation,
+                        correct_route,
+                        symptoms_summary,
+                        user_message.session_id,
+                    )
+                    print(
+                        f"[Chat] Automatically added conversation to vector store: {correct_route}"
+                    )
+                else:
+                    print(f"[Chat] No valid routing found in data: {routing}")
+            else:
+                print(f"[Chat] No routing data available for vector store addition")
+        except Exception as e:
+            print(f"[Chat] Error adding conversation to vector store: {e}")
+
+    # Handle different modes
+    mode = session.get("mode", "patient_intake")
+
+    if mode == "physician_consultation":
+        # In physician consultation mode, don't speak - only provide silent analysis
+        response = {
+            "reply": "",  # No spoken reply
+            "history": processor.get_history(),
+            "data": processor.get_data(),
+            "end_call": False,  # Don't end call automatically
+            "silent_mode": True,  # Flag to indicate silent mode
+        }
+    else:
+        # Normal patient intake mode with spoken responses
+        response = {
+            "reply": reply,
+            "history": processor.get_history(),
+            "data": processor.get_data(),
+            "end_call": end_call,
+        }
 
     # Add escalation info if present
     if escalation_info:
@@ -531,7 +932,7 @@ async def escalation_feedback(feedback: EscalationFeedback):
     if not session:
         return {"error": "Session not found"}
 
-    processor = IntakeProcessor(session)
+    processor = UnifiedProcessor(session)
     conversation = processor.get_history()
 
     # Create training example using LLM Judge
@@ -548,7 +949,7 @@ async def escalation_feedback(feedback: EscalationFeedback):
     if llm_judge.should_add_to_training(evaluation):
         symptoms_summary = training_example["symptoms_summary"]
         vector_store.add_labeled_case(
-            conversation, feedback.human_label, symptoms_summary
+            conversation, feedback.human_label, symptoms_summary, feedback.session_id
         )
 
     # Store evaluation for performance tracking
@@ -737,8 +1138,12 @@ async def run_demo_scenarios():
             symptoms_summary = " | ".join(
                 [msg["content"] for msg in scenario["conversation"]]
             )
+            demo_session_id = f"demo_{scenario['name'].replace(' ', '_').lower()}"
             vector_store.add_labeled_case(
-                scenario["conversation"], scenario["correct_route"], symptoms_summary
+                scenario["conversation"],
+                scenario["correct_route"],
+                symptoms_summary,
+                demo_session_id,
             )
 
     return {"message": f"Demo completed: {len(demo_scenarios)} scenarios processed"}
@@ -783,7 +1188,55 @@ async def reset_system():
 
 @app.get("/")
 def root():
-    return {"message": "SIVA Intake API is running."}
+    return {"message": "SIVA Unified API is running."}
+
+
+@app.get("/evidence/{session_id}")
+async def get_real_time_evidence(session_id: str):
+    """Get real-time evidence for display panel."""
+    session = sessions.get(session_id)
+    if not session:
+        return {"error": "Session not found"}
+
+    processor = UnifiedProcessor(session)
+    evidence = processor.get_real_time_evidence()
+
+    return {
+        "session_id": session_id,
+        "mode": session.get("mode", "patient_intake"),
+        "evidence": evidence,
+    }
+
+
+@app.post("/mode/switch")
+async def switch_mode(mode_request: ModeRequest):
+    """Switch between patient intake and physician consultation modes."""
+    global current_mode
+    if mode_request.mode in ["patient_intake", "physician_consultation"]:
+        current_mode = mode_request.mode
+        return {"mode": current_mode, "status": "switched"}
+    else:
+        return {
+            "error": "Invalid mode. Use 'patient_intake' or 'physician_consultation'"
+        }
+
+
+@app.post("/mode/toggle")
+async def toggle_mode(mode_request: ModeRequest):
+    """Toggle between patient intake and physician consultation modes."""
+    global current_mode
+    if current_mode == "patient_intake":
+        current_mode = "physician_consultation"
+    else:
+        current_mode = "patient_intake"
+
+    return {"mode": current_mode, "status": "toggled"}
+
+
+@app.get("/mode/current")
+async def get_current_mode():
+    """Get current application mode."""
+    return {"mode": current_mode}
 
 
 @app.get("/dashboard")

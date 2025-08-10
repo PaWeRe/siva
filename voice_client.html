@@ -5,62 +5,141 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>SIVA Voice Client</title>
     <style>
+      * {
+        box-sizing: border-box;
+      }
+
       body {
         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
           sans-serif;
         margin: 0;
         padding: 0;
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        background: #f5f7fa;
         min-height: 100vh;
-        display: flex;
-        align-items: center;
-        justify-content: center;
+        color: #2d3748;
+        overflow: hidden;
       }
 
       .container {
+        max-width: none;
+        margin: 0;
         background: white;
-        border-radius: 20px;
-        padding: 40px;
-        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
-        text-align: center;
-        max-width: 400px;
-        width: 100%;
+        border-radius: 0;
+        box-shadow: none;
+        overflow: hidden;
+        height: 100vh;
+        display: flex;
+        flex-direction: column;
       }
 
-      h1 {
-        color: #333;
-        margin-bottom: 30px;
-        font-size: 2.5em;
+      .header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 20px 30px;
+        text-align: center;
+        position: relative;
+        flex-shrink: 0;
+      }
+
+      .header h1 {
+        margin: 0;
+        font-size: 2.2em;
+        font-weight: 700;
+        letter-spacing: -0.5px;
+      }
+
+      .mode-indicator {
+        position: absolute;
+        top: 20px;
+        right: 20px;
+        background: rgba(255, 255, 255, 0.2);
+        padding: 8px 16px;
+        border-radius: 20px;
+        font-size: 0.9em;
+        font-weight: 500;
+        backdrop-filter: blur(10px);
+        cursor: pointer;
+        transition: all 0.2s ease;
+      }
+
+      .mode-indicator:hover {
+        background: rgba(255, 255, 255, 0.3);
+        transform: translateY(-1px);
+      }
+
+      .mode-switcher {
+        position: absolute;
+        top: 20px;
+        left: 20px;
+        background: rgba(255, 255, 255, 0.2);
+        padding: 8px 12px;
+        border-radius: 20px;
+        font-size: 0.8em;
+        font-weight: 500;
+        backdrop-filter: blur(10px);
+        cursor: pointer;
+        transition: all 0.2s ease;
+        border: none;
+        color: white;
+      }
+
+      .mode-switcher:hover {
+        background: rgba(255, 255, 255, 0.3);
+        transform: translateY(-1px);
+      }
+
+      .main-content {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 0;
+        flex: 1;
+        min-height: 0;
+      }
+
+      .voice-section {
+        padding: 30px;
+        border-right: 1px solid #e2e8f0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        background: #fafbfc;
       }
 
       .status {
-        font-size: 1.2em;
+        font-size: 1.1em;
         margin: 20px 0;
-        padding: 15px;
-        border-radius: 10px;
+        padding: 16px 24px;
+        border-radius: 12px;
         font-weight: 500;
+        text-align: center;
+        min-width: 300px;
       }
 
       .status.idle {
-        background: #f8f9fa;
-        color: #6c757d;
+        background: #f7fafc;
+        color: #4a5568;
+        border: 2px solid #e2e8f0;
       }
 
       .status.listening {
-        background: #d4edda;
-        color: #155724;
+        background: #c6f6d5;
+        color: #22543d;
+        border: 2px solid #9ae6b4;
         animation: pulse 2s infinite;
       }
 
       .status.speaking {
-        background: #cce5ff;
-        color: #004085;
+        background: #bee3f8;
+        color: #2a4365;
+        border: 2px solid #90cdf4;
         animation: pulse 2s infinite;
       }
 
       .status.processing {
-        background: #fff3cd;
-        color: #856404;
+        background: #fef5e7;
+        color: #744210;
+        border: 2px solid #fbd38d;
       }
 
       @keyframes pulse {
@@ -68,7 +147,7 @@
           opacity: 1;
         }
         50% {
-          opacity: 0.7;
+          opacity: 0.8;
         }
         100% {
           opacity: 1;
@@ -76,54 +155,228 @@
       }
 
       .call-button {
-        background: #28a745;
+        background: linear-gradient(135deg, #48bb78 0%, #38a169 100%);
         color: white;
         border: none;
         border-radius: 50%;
-        width: 120px;
-        height: 120px;
+        width: 100px;
+        height: 100px;
         font-size: 2em;
         cursor: pointer;
         transition: all 0.3s ease;
         margin: 20px 0;
+        box-shadow: 0 8px 25px rgba(72, 187, 120, 0.3);
       }
 
       .call-button:hover {
         transform: scale(1.05);
-        box-shadow: 0 10px 20px rgba(40, 167, 69, 0.3);
+        box-shadow: 0 12px 35px rgba(72, 187, 120, 0.4);
       }
 
       .call-button:disabled {
-        background: #6c757d;
+        background: #a0aec0;
         cursor: not-allowed;
         transform: none;
+        box-shadow: none;
       }
 
       .call-button.active {
-        background: #dc3545;
+        background: linear-gradient(135deg, #f56565 0%, #e53e3e 100%);
+        box-shadow: 0 8px 25px rgba(245, 101, 101, 0.3);
       }
 
       .connection-status {
         font-size: 0.9em;
         margin-top: 20px;
-        padding: 10px;
-        border-radius: 5px;
+        padding: 12px 20px;
+        border-radius: 8px;
+        font-weight: 500;
       }
 
       .connection-status.connected {
-        background: #d4edda;
-        color: #155724;
+        background: #c6f6d5;
+        color: #22543d;
+        border: 1px solid #9ae6b4;
       }
 
       .connection-status.disconnected {
-        background: #f8d7da;
-        color: #721c24;
+        background: #fed7d7;
+        color: #742a2a;
+        border: 1px solid #feb2b2;
       }
 
       .session-info {
-        margin-top: 20px;
+        margin-top: 15px;
         font-size: 0.8em;
-        color: #6c757d;
+        color: #718096;
+        font-family: "Monaco", "Menlo", monospace;
+      }
+
+      .evidence-section {
+        padding: 30px;
+        background: #f7fafc;
+        overflow-y: auto;
+        display: flex;
+        flex-direction: column;
+      }
+
+      .evidence-section h2 {
+        margin: 0 0 20px 0;
+        color: #2d3748;
+        font-size: 1.4em;
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        flex-shrink: 0;
+      }
+
+      .evidence-grid {
+        display: grid;
+        gap: 15px;
+        flex: 1;
+        grid-template-rows: auto auto auto auto;
+      }
+
+      .evidence-card {
+        background: white;
+        border-radius: 12px;
+        padding: 20px;
+        border: 1px solid #e2e8f0;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+        transition: all 0.2s ease;
+        min-height: 120px;
+        display: flex;
+        flex-direction: column;
+      }
+
+      .evidence-card:hover {
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+        transform: translateY(-2px);
+      }
+
+      .evidence-card h3 {
+        margin: 0 0 12px 0;
+        color: #2d3748;
+        font-size: 1em;
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-shrink: 0;
+      }
+
+      .evidence-content {
+        font-size: 0.9em;
+        line-height: 1.5;
+        color: #4a5568;
+        flex: 1;
+        overflow-y: auto;
+      }
+
+      .evidence-item {
+        background: #f7fafc;
+        padding: 10px 14px;
+        margin: 6px 0;
+        border-radius: 8px;
+        border-left: 4px solid #48bb78;
+        font-size: 0.85em;
+      }
+
+      .evidence-item.literature {
+        border-left-color: #4299e1;
+        background: #ebf8ff;
+      }
+
+      .evidence-item.similar-case {
+        border-left-color: #ed8936;
+        background: #fffaf0;
+      }
+
+      .search-terms {
+        margin-bottom: 12px;
+        flex-shrink: 0;
+      }
+
+      .search-term {
+        display: inline-block;
+        background: #e6fffa;
+        color: #234e52;
+        padding: 4px 10px;
+        margin: 2px 4px 2px 0;
+        border-radius: 16px;
+        font-size: 0.8em;
+        font-weight: 500;
+      }
+
+      .loading {
+        color: #718096;
+        font-style: italic;
+        text-align: center;
+        padding: 20px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex: 1;
+      }
+
+      .confidence-indicator {
+        background: white;
+        border-radius: 12px;
+        padding: 16px;
+        border: 1px solid #e2e8f0;
+        flex-shrink: 0;
+      }
+
+      .confidence-indicator h4 {
+        margin: 0 0 10px 0;
+        color: #2d3748;
+        font-size: 0.95em;
+        font-weight: 600;
+      }
+
+      .confidence-bar {
+        width: 100%;
+        height: 10px;
+        background: #e2e8f0;
+        border-radius: 5px;
+        overflow: hidden;
+        margin-bottom: 6px;
+      }
+
+      .confidence-fill {
+        height: 100%;
+        background: linear-gradient(90deg, #f56565, #ed8936, #48bb78);
+        transition: width 0.5s ease;
+        border-radius: 5px;
+      }
+
+      #confidenceText {
+        font-weight: 600;
+        color: #2d3748;
+        font-size: 0.85em;
+      }
+
+      /* Evidence timing states */
+      .evidence-card.waiting {
+        opacity: 0.7;
+        background: #f8f9fa;
+        border-color: #e2e8f0;
+      }
+
+      .evidence-card.waiting .loading {
+        color: #a0aec0;
+        font-size: 0.85em;
+      }
+
+      .evidence-card.active {
+        opacity: 1;
+        background: white;
+        border-color: #cbd5e0;
+      }
+
+      .evidence-card.waiting h3 {
+        color: #a0aec0;
       }
 
       /* Escalation Modal Styles */
@@ -134,118 +387,220 @@
         left: 0;
         width: 100%;
         height: 100%;
-        background-color: rgba(0, 0, 0, 0.5);
+        background-color: rgba(0, 0, 0, 0.6);
         z-index: 1000;
         justify-content: center;
         align-items: center;
+        backdrop-filter: blur(4px);
       }
 
       .escalation-content {
         background: white;
-        border-radius: 15px;
-        padding: 30px;
+        border-radius: 16px;
+        padding: 40px;
         max-width: 500px;
         width: 90%;
-        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
         text-align: center;
       }
 
       .escalation-title {
-        color: #333;
-        margin-bottom: 20px;
-        font-size: 1.5em;
+        color: #2d3748;
+        margin-bottom: 24px;
+        font-size: 1.4em;
+        font-weight: 600;
       }
 
       .agent-prediction {
-        background: #f8f9fa;
-        border-radius: 10px;
-        padding: 15px;
-        margin: 15px 0;
-        border-left: 4px solid #007bff;
+        background: #f7fafc;
+        border-radius: 12px;
+        padding: 20px;
+        margin: 20px 0;
+        border-left: 4px solid #4299e1;
       }
 
       .prediction-label {
-        font-weight: bold;
-        color: #007bff;
-        margin-bottom: 5px;
+        font-weight: 600;
+        color: #4299e1;
+        margin-bottom: 8px;
+        font-size: 0.9em;
       }
 
       .prediction-route {
         font-size: 1.2em;
-        color: #333;
-        margin-bottom: 10px;
+        color: #2d3748;
+        margin-bottom: 12px;
+        font-weight: 600;
       }
 
       .prediction-reasoning {
-        color: #666;
+        color: #718096;
         font-style: italic;
+        line-height: 1.5;
       }
 
       .human-feedback {
-        margin: 20px 0;
+        margin: 24px 0;
       }
 
       .feedback-label {
-        font-weight: bold;
-        margin-bottom: 10px;
-        color: #333;
+        font-weight: 600;
+        margin-bottom: 12px;
+        color: #2d3748;
       }
 
       .route-select {
         width: 100%;
-        padding: 10px;
-        border: 2px solid #ddd;
+        padding: 12px 16px;
+        border: 2px solid #e2e8f0;
         border-radius: 8px;
         font-size: 1em;
         margin-bottom: 20px;
+        background: white;
+        color: #2d3748;
+      }
+
+      .route-select:focus {
+        outline: none;
+        border-color: #4299e1;
+        box-shadow: 0 0 0 3px rgba(66, 153, 225, 0.1);
       }
 
       .escalation-buttons {
         display: flex;
-        gap: 10px;
+        gap: 12px;
         justify-content: center;
       }
 
       .submit-feedback-btn {
-        background: #28a745;
+        background: #48bb78;
         color: white;
         border: none;
-        padding: 12px 25px;
+        padding: 12px 24px;
         border-radius: 8px;
         font-size: 1em;
+        font-weight: 500;
         cursor: pointer;
-        transition: background 0.3s;
+        transition: all 0.2s ease;
       }
 
       .submit-feedback-btn:hover {
-        background: #218838;
+        background: #38a169;
+        transform: translateY(-1px);
       }
 
       .cancel-feedback-btn {
-        background: #6c757d;
+        background: #a0aec0;
         color: white;
         border: none;
-        padding: 12px 25px;
+        padding: 12px 24px;
         border-radius: 8px;
         font-size: 1em;
+        font-weight: 500;
         cursor: pointer;
-        transition: background 0.3s;
+        transition: all 0.2s ease;
       }
 
       .cancel-feedback-btn:hover {
-        background: #5a6268;
+        background: #718096;
+        transform: translateY(-1px);
+      }
+
+      /* Responsive Design */
+      @media (max-width: 768px) {
+        .main-content {
+          grid-template-columns: 1fr;
+        }
+
+        .voice-section {
+          border-right: none;
+          border-bottom: 1px solid #e2e8f0;
+          padding: 20px;
+        }
+
+        .evidence-section {
+          padding: 20px;
+        }
+
+        .header {
+          padding: 15px 20px;
+        }
+
+        .header h1 {
+          font-size: 1.8em;
+        }
+
+        .mode-indicator,
+        .mode-switcher {
+          position: static;
+          margin: 10px 5px;
+          display: inline-block;
+        }
       }
     </style>
   </head>
   <body>
     <div class="container">
-      <h1>🎤 SIVA</h1>
-      <div id="status" class="status idle">Ready to start call</div>
-      <button id="callButton" class="call-button">📞</button>
-      <div id="connectionStatus" class="connection-status disconnected">
-        Checking backend...
+      <div class="header">
+        <h1>🎤 SIVA</h1>
+        <div id="modeStatus" class="mode-indicator">Patient Intake Mode</div>
+        <button id="modeSwitcher" class="mode-switcher">🔄 Switch Mode</button>
       </div>
-      <div id="sessionInfo" class="session-info"></div>
+
+      <div class="main-content">
+        <!-- Voice Interface Section -->
+        <div class="voice-section">
+          <div id="status" class="status idle">Ready to start call</div>
+          <button id="callButton" class="call-button">📞</button>
+          <div id="connectionStatus" class="connection-status disconnected">
+            Checking backend...
+          </div>
+          <div id="sessionInfo" class="session-info"></div>
+        </div>
+
+        <!-- Evidence Display Section -->
+        <div class="evidence-section">
+          <h2>📚 Evidence Sources</h2>
+
+          <div class="evidence-grid">
+            <!-- Medical Literature Section -->
+            <div class="evidence-card">
+              <h3>📖 Medical Literature</h3>
+              <div id="searchTerms" class="search-terms">
+                <div class="loading">Analyzing conversation...</div>
+              </div>
+              <div id="literatureEvidence" class="evidence-content">
+                <div class="loading">Loading medical literature...</div>
+              </div>
+            </div>
+
+            <!-- Clinical Experience Section -->
+            <div class="evidence-card">
+              <h3>🏥 Clinical Experience</h3>
+              <div id="experienceEvidence" class="evidence-content">
+                <div class="loading">Loading similar cases...</div>
+              </div>
+            </div>
+
+            <!-- Extracted Data Section -->
+            <div class="evidence-card">
+              <h3>📊 Extracted Data</h3>
+              <div id="extractedData" class="evidence-content">
+                <div class="loading">No data extracted yet...</div>
+              </div>
+            </div>
+
+            <!-- Confidence Indicator -->
+            <div class="confidence-indicator">
+              <h4>🎯 Confidence Level</h4>
+              <div id="confidenceLevel" class="confidence-bar">
+                <div class="confidence-fill" style="width: 0%"></div>
+              </div>
+              <span id="confidenceText">0%</span>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- Escalation Modal -->
@@ -290,10 +645,12 @@
           this.isListening = false;
           this.isSpeaking = false;
           this.mediaRecorder = null;
+          this.audioStream = null; // Store the microphone stream
           this.audioChunks = [];
           this.conversationLog = [];
 
           this.statusElement = document.getElementById("status");
+          this.modeStatus = document.getElementById("modeStatus");
           this.callButton = document.getElementById("callButton");
           this.connectionStatus = document.getElementById("connectionStatus");
           this.sessionInfo = document.getElementById("sessionInfo");
@@ -307,6 +664,16 @@
           this.cancelFeedback = document.getElementById("cancelFeedback");
           this.currentEscalationData = null;
 
+          // Evidence panel elements
+          this.searchTerms = document.getElementById("searchTerms");
+          this.literatureEvidence =
+            document.getElementById("literatureEvidence");
+          this.experienceEvidence =
+            document.getElementById("experienceEvidence");
+          this.extractedData = document.getElementById("extractedData");
+          this.confidenceLevel = document.getElementById("confidenceLevel");
+          this.confidenceText = document.getElementById("confidenceText");
+
           this.initializeClient();
         }
 
@@ -318,6 +685,10 @@
           this.updateSessionInfo();
           await this.checkBackendConnection();
           this.setupEventListeners();
+
+          // Get current mode from backend
+          await this.getCurrentMode();
+
           this.log("Voice client initialized", "system");
         }
 
@@ -350,6 +721,246 @@
           this.sessionInfo.textContent = `Session: ${this.sessionId}`;
         }
 
+        async getCurrentMode() {
+          try {
+            const response = await fetch("http://localhost:8000/mode/current");
+            if (response.ok) {
+              const data = await response.json();
+              const mode = data.mode;
+
+              this.log(`Current mode: ${mode}`, "system");
+
+              // Update mode status display
+              const modeText =
+                mode === "patient_intake"
+                  ? "Patient Intake"
+                  : "Physician-Patient Consultation";
+              this.modeStatus.textContent = `${modeText} Mode`;
+            }
+          } catch (error) {
+            this.log(`Error getting current mode: ${error.message}`, "error");
+          }
+        }
+
+        clearEvidencePanel() {
+          this.searchTerms.innerHTML =
+            '<div class="loading">Waiting for symptoms...</div>';
+          this.literatureEvidence.innerHTML =
+            '<div class="loading">Medical evidence will appear once visit reason is provided</div>';
+          this.experienceEvidence.innerHTML =
+            '<div class="loading">Similar cases will be found after symptom analysis</div>';
+          this.extractedData.innerHTML =
+            '<div class="loading">No data extracted yet...</div>';
+          this.updateConfidence(0);
+
+          // Add waiting class to medical literature and clinical experience cards only
+          document.querySelectorAll(".evidence-card").forEach((card) => {
+            const cardTitle = card.querySelector("h3").textContent;
+            if (
+              cardTitle.includes("Medical Literature") ||
+              cardTitle.includes("Clinical Experience")
+            ) {
+              card.classList.add("waiting");
+            } else {
+              card.classList.remove("waiting");
+              card.classList.add("active");
+            }
+          });
+        }
+
+        async updateEvidencePanel() {
+          if (!this.sessionId) return;
+
+          try {
+            const response = await fetch(
+              `http://localhost:8000/evidence/${this.sessionId}`
+            );
+            if (response.ok) {
+              const data = await response.json();
+              this.displayEvidence(data.evidence);
+            }
+          } catch (error) {
+            this.log(`Error updating evidence: ${error.message}`, "error");
+          }
+        }
+
+        displayEvidence(evidence) {
+          // Check if evidence is ready to be displayed
+          if (evidence.evidence_ready === false) {
+            // Show waiting state for medical literature and clinical experience cards
+            this.searchTerms.innerHTML =
+              '<div class="loading">Waiting for symptoms...</div>';
+            this.literatureEvidence.innerHTML =
+              '<div class="loading">Medical evidence will appear once visit reason is provided</div>';
+            this.experienceEvidence.innerHTML =
+              '<div class="loading">Similar cases will be found after symptom analysis</div>';
+
+            // Add waiting class to medical literature and clinical experience cards only
+            document.querySelectorAll(".evidence-card").forEach((card) => {
+              const cardTitle = card.querySelector("h3").textContent;
+              if (
+                cardTitle.includes("Medical Literature") ||
+                cardTitle.includes("Clinical Experience")
+              ) {
+                card.classList.add("waiting");
+              } else {
+                card.classList.remove("waiting");
+                card.classList.add("active");
+              }
+            });
+
+            // Update confidence
+            this.updateConfidence(0);
+          } else {
+            // Remove waiting class from all evidence cards
+            document.querySelectorAll(".evidence-card").forEach((card) => {
+              card.classList.remove("waiting");
+              card.classList.add("active");
+            });
+          }
+
+          // Always display search terms (when available)
+          if (evidence.search_terms && evidence.search_terms.length > 0) {
+            this.searchTerms.innerHTML =
+              "<strong>Search Terms:</strong> " +
+              evidence.search_terms
+                .map((term) => `<span class="search-term">${term}</span>`)
+                .join(" ");
+          } else if (evidence.evidence_ready === false) {
+            this.searchTerms.innerHTML =
+              '<div class="loading">Waiting for symptoms...</div>';
+          } else {
+            this.searchTerms.innerHTML =
+              '<div class="loading">Analyzing conversation...</div>';
+          }
+
+          // Display medical literature (only when evidence is ready)
+          if (
+            evidence.evidence_ready &&
+            evidence.medical_literature &&
+            evidence.medical_literature.length > 0
+          ) {
+            this.literatureEvidence.innerHTML = evidence.medical_literature
+              .map(
+                (item) => `<div class="evidence-item literature">${item}</div>`
+              )
+              .join("");
+          } else if (evidence.evidence_ready) {
+            this.literatureEvidence.innerHTML =
+              '<div class="loading">No medical literature found</div>';
+          }
+
+          // Display clinical experience (only when evidence is ready)
+          if (evidence.evidence_ready) {
+            const experienceItems =
+              evidence.similar_cases || evidence.similar_pearls || [];
+            if (experienceItems.length > 0) {
+              this.experienceEvidence.innerHTML = experienceItems
+                .map((item) => {
+                  const text = item.symptoms || item.presentation || "Unknown";
+                  const outcome = item.route || item.decision || "Unknown";
+                  const similarity = Math.round(item.similarity * 100);
+                  return `<div class="evidence-item similar-case">
+                    <strong>${text}</strong><br>
+                    Outcome: ${outcome} (${similarity}% similar)
+                  </div>`;
+                })
+                .join("");
+            } else {
+              this.experienceEvidence.innerHTML =
+                '<div class="loading">No similar cases found</div>';
+            }
+          }
+
+          // Always display extracted data (real-time)
+          const extractedData = evidence.extracted_data || {};
+          if (Object.keys(extractedData).length > 0) {
+            this.extractedData.innerHTML = Object.entries(extractedData)
+              .map(([key, value]) => {
+                const displayKey = key
+                  .replace(/_/g, " ")
+                  .replace(/\b\w/g, (l) => l.toUpperCase());
+
+                let displayValue;
+                if (Array.isArray(value)) {
+                  if (value.length === 0) {
+                    displayValue = "None";
+                  } else if (
+                    typeof value[0] === "object" &&
+                    value[0] !== null
+                  ) {
+                    // Handle arrays of objects (like prescriptions)
+                    displayValue = value
+                      .map((item) => {
+                        if (item.medication && item.dosage) {
+                          return `${item.medication} (${item.dosage})`;
+                        } else if (item.first_name && item.last_name) {
+                          return `${item.first_name} ${item.last_name}`;
+                        } else if (item.route && item.reasoning) {
+                          return `${item.route} - ${item.reasoning}`;
+                        } else {
+                          return JSON.stringify(item);
+                        }
+                      })
+                      .join(", ");
+                  } else {
+                    displayValue = value.join(", ");
+                  }
+                } else if (value === null || value === undefined) {
+                  displayValue = "Not provided";
+                } else if (typeof value === "object" && value !== null) {
+                  // Handle single objects (like routing)
+                  if (value.route && value.reasoning) {
+                    displayValue = `${value.route} - ${value.reasoning}`;
+                  } else {
+                    displayValue = JSON.stringify(value);
+                  }
+                } else {
+                  displayValue = String(value);
+                }
+
+                return `<div class="evidence-item">
+                  <strong>${displayKey}:</strong> ${displayValue}
+                </div>`;
+              })
+              .join("");
+          } else {
+            this.extractedData.innerHTML =
+              '<div class="loading">No data extracted yet...</div>';
+          }
+
+          // Update confidence level
+          const confidence = evidence.confidence || 0;
+          this.updateConfidence(confidence, evidence.confidence_breakdown);
+        }
+
+        updateConfidence(confidence, breakdown = null) {
+          const percentage = Math.round(confidence * 100);
+
+          if (breakdown) {
+            const casePercent = Math.round(breakdown.case_confidence * 100);
+            const litPercent = Math.round(
+              breakdown.literature_confidence * 100
+            );
+            this.confidenceText.textContent = `${percentage}% (Cases: ${casePercent}%, Literature: ${litPercent}%)`;
+          } else {
+            this.confidenceText.textContent = `${percentage}%`;
+          }
+
+          const confidenceFill =
+            this.confidenceLevel.querySelector(".confidence-fill");
+          confidenceFill.style.width = `${percentage}%`;
+
+          // Update color based on confidence level
+          if (percentage < 30) {
+            confidenceFill.style.background = "#f56565"; // Red
+          } else if (percentage < 70) {
+            confidenceFill.style.background = "#ed8936"; // Orange
+          } else {
+            confidenceFill.style.background = "#48bb78"; // Green
+          }
+        }
+
         setupEventListeners() {
           this.callButton.addEventListener("click", () => {
             if (this.isCallActive) {
@@ -372,6 +983,11 @@
 
           this.cancelFeedback.addEventListener("click", () => {
             this.hideEscalationModal();
+          });
+
+          // Mode switcher event listener
+          this.modeSwitcher.addEventListener("click", () => {
+            this.toggleMode();
           });
         }
 
@@ -399,13 +1015,38 @@
           this.updateStatus("Initializing call...", "processing");
 
           try {
+            // Request microphone permission once at the start of the call
+            this.updateStatus("Requesting microphone access...", "processing");
+            this.audioStream = await navigator.mediaDevices.getUserMedia({
+              audio: true,
+            });
+            this.log("Microphone access granted", "system");
+
             // Send a proper greeting message instead of empty string
             const response = await this.sendChatMessage(
               "Hello, I'm here for my appointment."
             );
             await this.handleAgentResponse(response);
+
+            // Update evidence panel after starting call
+            await this.updateEvidencePanel();
           } catch (error) {
             this.log(`Error starting call: ${error.message}`, "error");
+
+            if (error.name === "NotAllowedError") {
+              this.updateStatus(
+                "Microphone access denied - please allow microphone access and try again",
+                "idle"
+              );
+            } else if (error.name === "NotFoundError") {
+              this.updateStatus(
+                "No microphone found - please connect a microphone and try again",
+                "idle"
+              );
+            } else {
+              this.updateStatus(`Microphone error: ${error.message}`, "idle");
+            }
+
             this.endCall();
           }
         }
@@ -418,6 +1059,13 @@
 
           if (this.mediaRecorder && this.mediaRecorder.state !== "inactive") {
             this.mediaRecorder.stop();
+          }
+
+          // Clean up the audio stream
+          if (this.audioStream) {
+            this.audioStream.getTracks().forEach((track) => track.stop());
+            this.audioStream = null;
+            this.log("Audio stream cleaned up", "system");
           }
 
           this.callButton.textContent = "📞";
@@ -451,6 +1099,16 @@
         }
 
         async handleAgentResponse(response) {
+          // Check if we're in silent mode (physician consultation)
+          if (response.silent_mode) {
+            this.log("Silent mode - no spoken response", "system");
+            this.updateStatus("Recording consultation...", "listening");
+
+            // Continue listening immediately without speaking
+            this.startListening();
+            return;
+          }
+
           if (!response.reply) {
             throw new Error("No reply from agent");
           }
@@ -608,10 +1266,12 @@
           this.audioChunks = [];
 
           try {
-            const stream = await navigator.mediaDevices.getUserMedia({
-              audio: true,
-            });
-            this.mediaRecorder = new MediaRecorder(stream);
+            // Use the existing audio stream instead of requesting a new one
+            if (!this.audioStream) {
+              throw new Error("No audio stream available");
+            }
+
+            this.mediaRecorder = new MediaRecorder(this.audioStream);
             this.log("Started recording from microphone", "system");
 
             this.mediaRecorder.ondataavailable = (event) => {
@@ -625,7 +1285,7 @@
             };
 
             this.mediaRecorder.onstop = async () => {
-              stream.getTracks().forEach((track) => track.stop());
+              // Don't stop the stream tracks here - we want to reuse them
               this.log(
                 `Recording stopped. Total chunks: ${this.audioChunks.length}`,
                 "system"
@@ -658,7 +1318,7 @@
           } catch (error) {
             this.log(`Microphone access error: ${error.message}`, "error");
             this.updateStatus(
-              "Microphone access denied - please check permissions",
+              "Microphone access error - please check permissions",
               "idle"
             );
           }
@@ -689,6 +1349,9 @@
 
               const response = await this.sendChatMessage(transcript);
               await this.handleAgentResponse(response);
+
+              // Update evidence panel after each message
+              await this.updateEvidencePanel();
             } else {
               this.log("No speech detected, continuing to listen...", "system");
               this.startListening();
@@ -853,6 +1516,36 @@
           } catch (error) {
             this.log(`Error submitting feedback: ${error.message}`, "error");
             alert("Error submitting feedback. Please try again.");
+          }
+        }
+
+        async toggleMode() {
+          try {
+            const response = await fetch("http://localhost:8000/mode/toggle", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ mode: "toggle" }),
+            });
+
+            if (response.ok) {
+              const data = await response.json();
+              const newMode = data.mode;
+              const newModeText =
+                newMode === "patient_intake"
+                  ? "Patient Intake"
+                  : "Physician-Patient Consultation";
+
+              this.log(`Mode toggled to: ${newModeText}`, "system");
+              this.modeStatus.textContent = `${newModeText} Mode`;
+
+              // Clear evidence panel for new mode
+              this.clearEvidencePanel();
+            } else {
+              throw new Error(`Mode toggle error: ${response.status}`);
+            }
+          } catch (error) {
+            this.log(`Error toggling mode: ${error.message}`, "error");
+            alert("Failed to toggle mode. Please try again.");
           }
         }
       }
