@@ -6,12 +6,12 @@ A modular, **self-improving voice agent framework** that **learns from expert fe
 
 ## 🚀 Quick Start
 
-**Requirements:** Python 3.10+, [uv](https://docs.astral.sh/uv/) package manager, browser with microphone access
+**Requirements:** Python 3.8+, [uv](https://docs.astral.sh/uv/) package manager, browser with microphone access
 
 1. **Setup Environment:**
    ```bash
-   uv venv .venv && source .venv/bin/activate
-   uv pip install -r requirements.txt
+   # Using uv (automatically handles virtual environment)
+   uv run python --version
    ```
 
 2. **Configure API Keys** (`.env` file):
@@ -54,9 +54,10 @@ A modular, **self-improving voice agent framework** that **learns from expert fe
 
 ### Core Components
 - **Frontend**: Pure HTML/JavaScript voice client with real-time audio streaming
-- **Backend**: FastAPI server with conversational state management
-- **Learning Stack**: Vector store + LLM judge + data manager for continuous improvement
-- **Domain Adapters**: Pluggable modules for different use cases
+- **API Layer**: FastAPI routes and WebSocket handlers for real-time communication
+- **Configuration**: Centralized settings management with environment variable validation
+- **Core Logic**: Vector store + LLM judge + data manager for continuous improvement
+- **Business Logic**: Modular conversation processor with domain-specific routing
 
 ### AI Models & Usage
 
@@ -92,18 +93,28 @@ Real-time dashboard tracking: total conversations, vector store size, system acc
 
 ```
 siva/
-├── main.py                    # FastAPI backend
-├── run_voice_app.py           # Main launcher
+├── pyproject.toml             # Package configuration and dependencies
+├── main.py                    # FastAPI server entry point
+├── run_voice_app.py           # Application launcher
 ├── serve_client.py            # Voice client server
-├── voice_client.html          # Voice interface
-├── dashboard.html             # Performance monitoring
-├── vector_store.py            # Experience-based evidence storage
-├── llm_judge.py               # Evaluation and knowledge extraction
-├── data_manager.py            # Persistent data storage
-├── requirements.txt           # Python dependencies
+├── api/                       # API layer
+│   ├── routes.py              # FastAPI routes and endpoints
+│   └── websockets.py          # WebSocket handlers (TTS/STT)
+├── config/                    # Configuration management
+│   └── settings.py            # Pydantic settings with env validation
+├── core/                      # Business logic
+│   ├── data_manager.py        # Persistent data storage
+│   ├── llm_judge.py           # Evaluation and knowledge extraction
+│   ├── vector_store.py        # Experience-based evidence storage
+│   ├── processor.py           # Main conversation processor
+│   └── schemas.py             # Pydantic models and function schemas
+├── frontend/                  # Static web assets
+│   ├── voice_client.html      # Voice interface
+│   └── dashboard.html         # Performance monitoring
+├── old/                       # Legacy code (preserved for reference)
 ├── assets/                    # Media files
 │   ├── siva_demo_10x.gif      # Demo recording
-│   └── flowchart_self_learning_agent.jpeg # conceptual overview 
+│   └── flowchart_self_learning_agent.jpeg # Architecture overview
 └── siva_data/                 # Learning database + knowledge pearls
 ```
 
