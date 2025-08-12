@@ -1,0 +1,1 @@
+"""Frontend package for SIVA static files."""

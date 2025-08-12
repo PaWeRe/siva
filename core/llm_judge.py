@@ -9,8 +9,8 @@ import os
 class LLMJudge:
     """Handles evaluation and curation of routing decisions."""
 
-    def __init__(self):
-        self.client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+    def __init__(self, openai_api_key: Optional[str] = None):
+        self.client = OpenAI(api_key=openai_api_key or os.getenv("OPENAI_API_KEY"))
 
     def extract_symptoms_summary(self, conversation_messages: List[Dict]) -> str:
         """Extract and summarize key symptoms from conversation for training data."""

@@ -3,7 +3,7 @@
 import os
 import json
 import numpy as np
-from typing import List, Dict, Any, Tuple
+from typing import List, Dict, Any, Tuple, Optional
 from openai import OpenAI
 from datetime import datetime
 from pathlib import Path
@@ -17,12 +17,13 @@ class VectorStore:
         self,
         data_dir: str = "siva_data",
         similarity_threshold: float = 0.75,
+        openai_api_key: Optional[str] = None,
     ):
         self.data_dir = Path(data_dir)
         self.data_dir.mkdir(exist_ok=True)
         self.data_file = self.data_dir / "conversation_vectors.json"
         self.similarity_threshold = similarity_threshold
-        self.client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+        self.client = OpenAI(api_key=openai_api_key or os.getenv("OPENAI_API_KEY"))
         self.conversations = []
         self.load_data()
 
