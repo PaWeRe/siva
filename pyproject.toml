@@ -22,6 +22,7 @@ dependencies = [
     "numpy",
     "scikit-learn",
     "pydantic-settings",
+    "requests>=2.32.4",
 ]
 
 [project.optional-dependencies]

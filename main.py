@@ -9,6 +9,7 @@ from core.data_manager import DataManager
 from core.llm_judge import LLMJudge
 from core.vector_store import VectorStore
 from api import routes
+from api.embedding_viz import router as embedding_router
 from api.websockets import websocket_tts, websocket_stt
 
 # Create FastAPI app
@@ -46,6 +47,7 @@ routes.current_mode = settings.current_mode
 
 # Include API routes
 app.include_router(routes.router)
+app.include_router(embedding_router, prefix="/api")
 
 
 # WebSocket endpoints

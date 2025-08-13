@@ -13,6 +13,7 @@ from core.schemas import (
     PearlValidationRequest,
     PearlOutcomeRequest,
 )
+from .embedding_viz import router as embedding_router
 from core.processor import UnifiedProcessor
 from core.data_manager import DataManager
 from core.vector_store import VectorStore
@@ -206,6 +207,7 @@ async def dashboard_metrics():
     escalation_metrics = data_manager.get_escalation_metrics()
     data_stats = data_manager.get_data_statistics()
     learning_curve = data_manager.compute_learning_curve()
+    system_readiness = data_manager.compute_system_readiness()
 
     # Get current session data
     all_evaluations = []
@@ -245,6 +247,7 @@ async def dashboard_metrics():
             "evaluations": total_persistent_evaluations,
             "conversations": data_stats["total_conversations"],
         },
+        "system_readiness": system_readiness,
     }
 
 

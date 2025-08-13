@@ -203,6 +203,72 @@
         opacity: 1;
       }
 
+      /* Embedding Visualization Styles */
+      .viz-btn {
+        background: #f8f9fa;
+        border: 1px solid #dee2e6;
+        color: #495057;
+        padding: 8px 16px;
+        margin-right: 10px;
+        border-radius: 5px;
+        cursor: pointer;
+        font-size: 14px;
+        transition: all 0.2s;
+      }
+
+      .viz-btn:hover {
+        background: #e9ecef;
+      }
+
+      .viz-btn.active {
+        background: #667eea;
+        color: white;
+        border-color: #667eea;
+      }
+
+      .embedding-tooltip {
+        position: absolute;
+        background: rgba(0, 0, 0, 0.9);
+        color: white;
+        padding: 8px 12px;
+        border-radius: 4px;
+        font-size: 12px;
+        pointer-events: none;
+        opacity: 0;
+        transition: opacity 0.2s;
+        z-index: 1000;
+        max-width: 300px;
+        word-wrap: break-word;
+      }
+
+      .embedding-legend {
+        margin-top: 15px;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 15px;
+        justify-content: center;
+      }
+
+      .legend-item {
+        display: flex;
+        align-items: center;
+        gap: 5px;
+        font-size: 14px;
+      }
+
+      .legend-color {
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+      }
+
+      #embeddingContainer {
+        background: white;
+        border: 1px solid #dee2e6;
+        border-radius: 5px;
+        overflow: hidden;
+      }
+
       .learning-progress {
         margin: 10px 0;
       }
@@ -304,6 +370,35 @@
     <div class="chart-container">
       <h3>📊 Learning Curve Over Time</h3>
       <canvas id="learningChart" width="400" height="100"></canvas>
+    </div>
+
+    <!-- Embedding Visualization -->
+    <div class="chart-container">
+      <h3>🧠 Patient Embedding Clusters</h3>
+      <div style="margin-bottom: 15px">
+        <button
+          onclick="loadEmbeddingVisualization('pca')"
+          id="pcaBtn"
+          class="viz-btn active"
+        >
+          PCA View
+        </button>
+        <button
+          onclick="loadEmbeddingVisualization('tsne')"
+          id="tsneBtn"
+          class="viz-btn"
+        >
+          t-SNE View
+        </button>
+        <button onclick="showEmbeddingAnalysis()" class="viz-btn">
+          Analysis
+        </button>
+      </div>
+      <div id="embeddingContainer" style="position: relative; height: 400px">
+        <canvas id="embeddingChart" width="600" height="400"></canvas>
+        <div id="embeddingTooltip" class="embedding-tooltip"></div>
+      </div>
+      <div id="embeddingLegend" class="embedding-legend"></div>
     </div>
 
     <!-- Recent Activity -->
@@ -642,6 +737,315 @@
           }
         }
       }
+
+      // Embedding Visualization Functions
+      let embeddingCanvas = null;
+      let embeddingCtx = null;
+      let embeddingData = null;
+      let currentVisualizationMethod = "pca";
+
+      async function loadEmbeddingVisualization(method = "pca") {
+        try {
+          // Update button states
+          document
+            .querySelectorAll(".viz-btn")
+            .forEach((btn) => btn.classList.remove("active"));
+          document
+            .getElementById(method === "pca" ? "pcaBtn" : "tsneBtn")
+            .classList.add("active");
+
+          currentVisualizationMethod = method;
+
+          // Show loading
+          const container = document.getElementById("embeddingContainer");
+          container.innerHTML =
+            '<div style="text-align: center; padding: 50px;">Loading embedding visualization...</div>';
+
+          // Fetch data
+          const response = await fetch(
+            `/api/embedding_visualization?method=${method}&include_clusters=true`
+          );
+          const data = await response.json();
+
+          if (data.error) {
+            container.innerHTML = `<div style="text-align: center; padding: 50px; color: #dc3545;">${data.error}</div>`;
+            return;
+          }
+
+          embeddingData = data;
+
+          // Recreate canvas
+          container.innerHTML = `
+            <canvas id="embeddingChart" width="600" height="400"></canvas>
+            <div id="embeddingTooltip" class="embedding-tooltip"></div>
+          `;
+
+          embeddingCanvas = document.getElementById("embeddingChart");
+          embeddingCtx = embeddingCanvas.getContext("2d");
+
+          // Draw visualization
+          drawEmbeddingVisualization();
+
+          // Update legend
+          updateEmbeddingLegend();
+
+          // Add interactivity
+          setupEmbeddingInteractivity();
+        } catch (error) {
+          console.error("Error loading embedding visualization:", error);
+          document.getElementById(
+            "embeddingContainer"
+          ).innerHTML = `<div style="text-align: center; padding: 50px; color: #dc3545;">Error loading visualization: ${error.message}</div>`;
+        }
+      }
+
+      function drawEmbeddingVisualization() {
+        if (!embeddingData || !embeddingCtx) return;
+
+        const { data } = embeddingData;
+        const canvas = embeddingCanvas;
+        const ctx = embeddingCtx;
+
+        // Clear canvas
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        // Calculate bounds
+        const xValues = data.map((d) => d.x);
+        const yValues = data.map((d) => d.y);
+        const xMin = Math.min(...xValues);
+        const xMax = Math.max(...xValues);
+        const yMin = Math.min(...yValues);
+        const yMax = Math.max(...yValues);
+
+        // Add padding
+        const padding = 40;
+        const xRange = xMax - xMin;
+        const yRange = yMax - yMin;
+        const xScale = (canvas.width - 2 * padding) / xRange;
+        const yScale = (canvas.height - 2 * padding) / yRange;
+
+        // Function to convert data coordinates to canvas coordinates
+        function toCanvasX(x) {
+          return padding + (x - xMin) * xScale;
+        }
+
+        function toCanvasY(y) {
+          return canvas.height - padding - (y - yMin) * yScale;
+        }
+
+        // Draw points
+        data.forEach((point) => {
+          const x = toCanvasX(point.x);
+          const y = toCanvasY(point.y);
+
+          ctx.beginPath();
+          ctx.arc(x, y, 5, 0, 2 * Math.PI);
+          ctx.fillStyle = point.color;
+          ctx.fill();
+          ctx.strokeStyle = "#333";
+          ctx.lineWidth = 1;
+          ctx.stroke();
+
+          // Store canvas coordinates for tooltip
+          point.canvasX = x;
+          point.canvasY = y;
+        });
+
+        // Draw axes
+        ctx.strokeStyle = "#ddd";
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(padding, padding);
+        ctx.lineTo(padding, canvas.height - padding);
+        ctx.lineTo(canvas.width - padding, canvas.height - padding);
+        ctx.stroke();
+
+        // Add axis labels
+        ctx.fillStyle = "#666";
+        ctx.font = "12px Arial";
+        ctx.textAlign = "center";
+        ctx.fillText(
+          `${currentVisualizationMethod.toUpperCase()} Component 1`,
+          canvas.width / 2,
+          canvas.height - 10
+        );
+
+        ctx.save();
+        ctx.translate(15, canvas.height / 2);
+        ctx.rotate(-Math.PI / 2);
+        ctx.fillText(
+          `${currentVisualizationMethod.toUpperCase()} Component 2`,
+          0,
+          0
+        );
+        ctx.restore();
+      }
+
+      function updateEmbeddingLegend() {
+        if (!embeddingData) return;
+
+        const legend = document.getElementById("embeddingLegend");
+        const { route_colors, cluster_stats } = embeddingData;
+
+        let legendHTML =
+          '<h4>Route Legend:</h4><div style="display: flex; flex-wrap: wrap; gap: 15px;">';
+
+        Object.entries(route_colors).forEach(([route, color]) => {
+          legendHTML += `
+            <div class="legend-item">
+              <div class="legend-color" style="background-color: ${color};"></div>
+              <span>${route}</span>
+            </div>
+          `;
+        });
+
+        legendHTML += "</div>";
+
+        if (cluster_stats && Object.keys(cluster_stats).length > 0) {
+          legendHTML += '<h4 style="margin-top: 20px;">Cluster Analysis:</h4>';
+          legendHTML +=
+            '<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px;">';
+
+          Object.entries(cluster_stats).forEach(([clusterId, stats]) => {
+            legendHTML += `
+              <div style="background: #f8f9fa; padding: 10px; border-radius: 5px; border-left: 4px solid ${
+                route_colors[stats.dominant_route] || "#666"
+              };">
+                <strong>Cluster ${clusterId}</strong><br>
+                <small>${stats.size} patients</small><br>
+                <small>Dominant: ${stats.dominant_route}</small>
+              </div>
+            `;
+          });
+
+          legendHTML += "</div>";
+        }
+
+        legend.innerHTML = legendHTML;
+      }
+
+      function setupEmbeddingInteractivity() {
+        if (!embeddingCanvas || !embeddingData) return;
+
+        const tooltip = document.getElementById("embeddingTooltip");
+
+        embeddingCanvas.addEventListener("mousemove", (event) => {
+          const rect = embeddingCanvas.getBoundingClientRect();
+          const mouseX = event.clientX - rect.left;
+          const mouseY = event.clientY - rect.top;
+
+          // Find closest point
+          let closest = null;
+          let minDistance = Infinity;
+
+          embeddingData.data.forEach((point) => {
+            const distance = Math.sqrt(
+              Math.pow(mouseX - point.canvasX, 2) +
+                Math.pow(mouseY - point.canvasY, 2)
+            );
+
+            if (distance < 15 && distance < minDistance) {
+              minDistance = distance;
+              closest = point;
+            }
+          });
+
+          if (closest) {
+            tooltip.style.opacity = "1";
+            tooltip.style.left = event.clientX + 10 + "px";
+            tooltip.style.top = event.clientY - 10 + "px";
+            tooltip.innerHTML = `
+              <strong>Route:</strong> ${closest.route}<br>
+              <strong>ID:</strong> ${closest.id}<br>
+              <strong>Symptoms:</strong> ${closest.symptoms}<br>
+              ${
+                closest.cluster >= 0
+                  ? `<strong>Cluster:</strong> ${closest.cluster}`
+                  : ""
+              }
+            `;
+          } else {
+            tooltip.style.opacity = "0";
+          }
+        });
+
+        embeddingCanvas.addEventListener("mouseleave", () => {
+          tooltip.style.opacity = "0";
+        });
+      }
+
+      async function showEmbeddingAnalysis() {
+        try {
+          const response = await fetch("/api/embedding_analysis");
+          const analysis = await response.json();
+
+          if (analysis.error) {
+            alert("Error: " + analysis.error);
+            return;
+          }
+
+          let content = `
+            <h3>📊 Embedding Space Analysis</h3>
+            <p><strong>Total Conversations:</strong> ${
+              analysis.total_conversations
+            }</p>
+            <p><strong>Embedding Dimensions:</strong> ${
+              analysis.embedding_statistics?.dimensions || "N/A"
+            }</p>
+            
+            <h4>Route Distribution:</h4>
+          `;
+
+          Object.entries(analysis.route_distribution).forEach(
+            ([route, stats]) => {
+              content += `
+              <div style="margin: 10px 0; padding: 10px; background: #f8f9fa; border-radius: 5px;">
+                <strong>${route}:</strong> ${
+                stats.count
+              } cases (${stats.percentage.toFixed(1)}%)
+                <div style="margin-top: 5px;">
+                  ${stats.examples
+                    .map((ex) => `<small>• ${ex.symptoms}</small>`)
+                    .join("<br>")}
+                </div>
+              </div>
+            `;
+            }
+          );
+
+          // Show in a modal-like overlay
+          const overlay = document.createElement("div");
+          overlay.style.cssText = `
+            position: fixed; top: 0; left: 0; right: 0; bottom: 0; 
+            background: rgba(0,0,0,0.8); z-index: 10000; 
+            display: flex; align-items: center; justify-content: center;
+          `;
+
+          const modal = document.createElement("div");
+          modal.style.cssText = `
+            background: white; padding: 30px; border-radius: 10px; 
+            max-width: 600px; max-height: 80vh; overflow-y: auto;
+            margin: 20px;
+          `;
+
+          modal.innerHTML =
+            content +
+            '<button onclick="this.closest(\'.overlay\').remove()" style="margin-top: 20px; padding: 10px 20px; background: #667eea; color: white; border: none; border-radius: 5px; cursor: pointer;">Close</button>';
+          overlay.className = "overlay";
+          overlay.appendChild(modal);
+          document.body.appendChild(overlay);
+        } catch (error) {
+          alert("Error loading analysis: " + error.message);
+        }
+      }
+
+      // Initialize embedding visualization on page load
+      document.addEventListener("DOMContentLoaded", () => {
+        // Load initial embedding visualization after a short delay
+        setTimeout(() => {
+          loadEmbeddingVisualization("pca");
+        }, 1000);
+      });
     </script>
   </body>
 </html>
