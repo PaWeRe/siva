@@ -1,0 +1,91 @@
+# SIVA AI Agent Project - Cursor Rules
+
+## Project Overview
+SIVA is an enhanced AI agent system with self-learning capabilities, voice interaction, and web-based visualization. The project follows a modular architecture with clear separation of concerns.
+
+## Code Style & Standards
+
+### Python Code
+- Use type hints for all function parameters and return values
+- Follow PEP 8 style guidelines
+- Use descriptive variable and function names
+- Add docstrings for all classes and public methods
+- Use f-strings for string formatting
+- Prefer list comprehensions over explicit loops when appropriate
+- Use `uv` as the package manager (not pip)
+
+### File Organization
+- Keep related functionality in the same module
+- Use `__init__.py` files to expose public APIs
+- Follow the existing directory structure:
+  - `core/` - Core agent functionality
+  - `api/` - Web API endpoints
+  - `config/` - Configuration management
+  - `frontend/` - Web interface
+  - `tests/` - Test files
+
+## Architecture Guidelines
+
+### Enhanced Agent System
+- The `EnhancedAgent` class in `core/enhanced_agent.py` is the main entry point
+- Maintain the existing method signatures and interfaces
+- Follow the established patterns for tool integration
+- Preserve the self-learning and evaluation capabilities
+
+### Data Management
+- Use the `DataManager` class for all data operations
+- Store data in the `siva_data/` directory
+- Follow the established schema patterns in `core/schemas.py`
+
+### API Design
+- RESTful endpoints in `api/routes.py`
+- WebSocket support in `api/websockets.py`
+- Maintain backward compatibility when possible
+
+## Testing Requirements
+- Write unit tests for all new functionality
+- Use the existing test framework in `tests/`
+- Follow the patterns in `test_enhanced_siva.py`
+- Run tests with `uv run python -m pytest`
+
+## Documentation
+- Update relevant markdown files when making significant changes
+- Keep `README.md` current with setup and usage instructions
+- Document new features in appropriate guide files
+
+## Dependencies
+- Use `uv` for dependency management
+- Add new dependencies to `pyproject.toml`
+- Run `uv sync` to update the lock file
+- Keep `requirements.txt` for compatibility
+
+## AI Agent Specific Guidelines
+- Maintain the tool-based architecture for agent capabilities
+- Preserve the learning and evaluation framework
+- Keep voice interaction functionality working
+- Ensure web visualization remains functional
+
+## Error Handling
+- Use appropriate exception types
+- Provide meaningful error messages
+- Log errors appropriately
+- Handle edge cases gracefully
+
+## Performance Considerations
+- Use async/await for I/O operations
+- Optimize database queries and vector operations
+- Consider memory usage for large datasets
+- Profile code when performance issues arise
+
+## Security
+- Validate all user inputs
+- Sanitize data before processing
+- Use environment variables for sensitive configuration
+- Follow secure coding practices
+
+## When Making Changes
+1. Test your changes thoroughly
+2. Update documentation if needed
+3. Ensure all existing functionality still works
+4. Consider the impact on the AI agent's learning capabilities
+5. Maintain the modular architecture
