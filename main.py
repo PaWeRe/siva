@@ -12,6 +12,9 @@ from api import routes
 from api.embedding_viz import router as embedding_router
 from api.websockets import websocket_tts, websocket_stt
 
+# Import the bridge for tau2-bench integration
+from src.siva.bridge import initialize_bridge
+
 # Create FastAPI app
 app = FastAPI(
     title="SIVA API",
@@ -38,12 +41,24 @@ vector_store = VectorStore(
 llm_judge = LLMJudge(openai_api_key=settings.openai_api_key)
 data_manager = DataManager(data_dir=settings.data_dir)
 
-# Set global components in routes module
+# Initialize the SIVA bridge for tau2-bench integration
+siva_bridge = initialize_bridge(
+    vector_store=vector_store,
+    llm_judge=llm_judge,
+    data_manager=data_manager,
+    openai_client=openai_client,
+    current_mode=settings.current_mode,
+)
+
+# Set global components in routes module (keeping existing functionality)
 routes.vector_store = vector_store
 routes.llm_judge = llm_judge
 routes.data_manager = data_manager
 routes.openai_client = openai_client
 routes.current_mode = settings.current_mode
+
+# Also set the bridge for future use
+routes.siva_bridge = siva_bridge
 
 # Include API routes
 app.include_router(routes.router)

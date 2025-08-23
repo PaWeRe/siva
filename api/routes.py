@@ -27,6 +27,7 @@ data_manager: DataManager = None
 openai_client = None
 sessions: Dict[str, Dict[str, Any]] = {}
 current_mode: str = "patient_intake"
+siva_bridge = None  # Bridge for tau2-bench integration
 
 # Create router
 router = APIRouter()
