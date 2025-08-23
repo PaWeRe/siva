@@ -23,6 +23,11 @@ from .domains.patient_intake.environment import (
 )
 from .domains.patient_intake.tools import PatientIntakeTools
 from .domains.patient_intake.data_model import PatientIntakeDB
+from .agent.healthcare_agent import create_healthcare_agent, HealthcareAgent
+from .user.healthcare_user_simulator import (
+    create_user_simulator,
+    HealthcareUserSimulator,
+)
 
 
 class SIVABridge:
@@ -55,6 +60,17 @@ class SIVABridge:
             data_manager=data_manager,
             openai_client=openai_client,
         )
+
+        # Create healthcare agent
+        self.healthcare_agent = create_healthcare_agent(
+            vector_store=vector_store,
+            llm_judge=llm_judge,
+            openai_client=openai_client,
+            retrieval_threshold=3,
+        )
+
+        # Create user simulator
+        self.user_simulator = create_user_simulator()
 
     def create_legacy_processor(self, session: Dict[str, Any]) -> UnifiedProcessor:
         """
@@ -130,6 +146,68 @@ class SIVABridge:
 
         return reply, end_call, escalation_info
 
+    def process_message_with_agent(
+        self, session_id: str, message: str
+    ) -> Tuple[str, bool, Dict[str, Any]]:
+        """
+        Process a message using the new healthcare agent.
+        This is the most advanced implementation using the agent interface.
+        """
+        # Get or create session
+        session = self._get_or_create_session(session_id)
+
+        # Convert session to agent state
+        from .agent.healthcare_agent import HealthcareAgentState, UserMessage
+
+        agent_state = HealthcareAgentState(session)
+
+        # Create user message
+        user_message = UserMessage(message)
+
+        # Process with agent
+        assistant_message, updated_state = self.healthcare_agent.generate_next_message(
+            user_message, agent_state
+        )
+
+        # Update session with agent results
+        session.update(updated_state.session_data)
+
+        # Check if conversation should end
+        end_call = self.healthcare_agent.is_stop(assistant_message)
+
+        return assistant_message.content, end_call, {}
+
+    def simulate_conversation_with_agent(
+        self, patient_messages: list[str]
+    ) -> list[Tuple[str, str]]:
+        """
+        Simulate a complete conversation using the healthcare agent.
+        Returns list of (agent_message, patient_message) pairs.
+        """
+        conversation = []
+
+        # Initialize agent state
+        from .agent.healthcare_agent import HealthcareAgentState, UserMessage
+
+        agent_state = self.healthcare_agent.get_init_state()
+
+        for patient_message in patient_messages:
+            # Create user message
+            user_message = UserMessage(patient_message)
+
+            # Get agent response
+            assistant_message, agent_state = (
+                self.healthcare_agent.generate_next_message(user_message, agent_state)
+            )
+
+            conversation.append((assistant_message.content, patient_message))
+
+            # Check if conversation should end
+            if self.healthcare_agent.is_stop(assistant_message):
+                break
+
+        return conversation
+
     def get_function_schemas(self) -> list[Dict[str, Any]]:
         """
         Get function schemas for OpenAI function calling.
@@ -181,6 +259,14 @@ class SIVABridge:
         Get session data from the bridge.
         """
         return self._get_or_create_session(session_id)
+
+    def get_agent(self) -> HealthcareAgent:
+        """Get the healthcare agent instance."""
+        return self.healthcare_agent
+
+    def get_user_simulator(self) -> HealthcareUserSimulator:
+        """Get the user simulator instance."""
+        return self.user_simulator
 
 
 # Global bridge instance (will be initialized in main.py)
