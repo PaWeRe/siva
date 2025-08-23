@@ -26,11 +26,14 @@ from api.websockets import websocket_tts, websocket_stt
 # Import the bridge for tau2-bench integration
 from src.siva.bridge import initialize_bridge
 
+# Import new API service
+from src.siva.api_service.main_router import main_router as new_api_router
+
 # Create FastAPI app
 app = FastAPI(
     title="SIVA API",
     description="Self-Learning Voice Agent for Healthcare Intake",
-    version="0.1.0",
+    version="2.0.0",
 )
 
 # Add CORS middleware
@@ -71,9 +74,12 @@ routes.current_mode = settings.current_mode
 # Also set the bridge for future use
 routes.siva_bridge = siva_bridge
 
-# Include API routes
+# Include legacy API routes (maintaining backward compatibility)
 app.include_router(routes.router)
 app.include_router(embedding_router, prefix="/api")
+
+# Include new API routes (tau2-bench compatible)
+app.include_router(new_api_router, prefix="/api")
 
 
 # WebSocket endpoints
