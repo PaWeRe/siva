@@ -10,6 +10,8 @@ sys.path.append(os.path.join(os.path.dirname(__file__), "..", "..", "..", ".."))
 from core.vector_store import VectorStore
 from core.llm_judge import LLMJudge
 from core.data_manager import DataManager
+from core.processor import UnifiedProcessor
+from openai import OpenAI
 
 
 # For now, we'll create simple placeholder classes
@@ -48,6 +50,8 @@ from core.vector_store import VectorStore
 from core.llm_judge import LLMJudge
 from core.data_manager import DataManager
 
+from .tools import PatientIntakeTools
+
 
 class PatientIntakeEnvironment(Environment):
     """Patient intake environment for healthcare domain."""
@@ -56,17 +60,23 @@ class PatientIntakeEnvironment(Environment):
         self,
         domain_name: str,
         policy: str,
-        tools: Any,  # We'll define proper tools later
-        user_tools: Any,  # We'll define proper user tools later
+        tools: PatientIntakeTools,
+        user_tools: Any,
         vector_store: Optional[VectorStore] = None,
         llm_judge: Optional[LLMJudge] = None,
         data_manager: Optional[DataManager] = None,
+        openai_client: Optional[OpenAI] = None,
     ):
         super().__init__(domain_name, policy, tools, user_tools)
         self.vector_store = vector_store
         self.llm_judge = llm_judge
         self.data_manager = data_manager
+        self.openai_client = openai_client
         self.session_data: Dict[str, Any] = {}
+
+        # Initialize tools with session data
+        if tools and hasattr(tools, "session_data"):
+            tools.session_data = self.session_data
 
     def set_state(
         self,
@@ -90,14 +100,73 @@ class PatientIntakeEnvironment(Environment):
                 {"role": "system", "content": self._get_system_prompt()}
             ]
 
+        # Update tools session data
+        if self.tools and hasattr(self.tools, "session_data"):
+            self.tools.session_data = self.session_data
+
     def get_response(self, tool_call: Dict[str, Any]) -> Dict[str, Any]:
         """Handle tool calls in the patient intake environment."""
-        # For now, return a simple response
-        # This will be expanded to handle your existing function calls
-        return {
-            "content": f"Tool call {tool_call.get('name', 'unknown')} processed",
-            "success": True,
-        }
+        if not self.tools:
+            return {"content": "No tools available", "success": False}
+
+        # Parse the tool call
+        function_name = tool_call.get("name")
+        arguments = tool_call.get("arguments", {})
+
+        # Handle different tool calls
+        if function_name == "verify_fullname":
+            return self.tools.verify_fullname(arguments.get("names", []))
+        elif function_name == "verify_birthday":
+            return self.tools.verify_birthday(arguments.get("birthday", ""))
+        elif function_name == "list_prescriptions":
+            return self.tools.list_prescriptions(arguments.get("prescriptions", []))
+        elif function_name == "list_allergies":
+            return self.tools.list_allergies(arguments.get("allergies", []))
+        elif function_name == "list_conditions":
+            return self.tools.list_conditions(arguments.get("conditions", []))
+        elif function_name == "list_visit_reasons":
+            return self.tools.list_visit_reasons(arguments.get("visit_reasons", []))
+        elif function_name == "collect_detailed_symptoms":
+            return self.tools.collect_detailed_symptoms(arguments.get("symptoms", []))
+        elif function_name == "determine_routing":
+            return self.tools.determine_routing(
+                arguments.get("route", ""), arguments.get("reasoning", "")
+            )
+        else:
+            return {"content": f"Unknown tool call: {function_name}", "success": False}
+
+    def process_message(self, message: str) -> tuple[str, bool, Dict[str, Any]]:
+        """
+        Process a message using the environment.
+        This integrates with your existing processor logic.
+        """
+        # Create a legacy processor for compatibility
+        if self.openai_client and self.vector_store and self.llm_judge:
+            processor = UnifiedProcessor(
+                session=self.session_data,
+                vector_store=self.vector_store,
+                llm_judge=self.llm_judge,
+                openai_client=self.openai_client,
+                retrieval_threshold=3,
+                current_mode="patient_intake",
+            )
+
+            # Process the message
+            reply, end_call, escalation_info = processor.next_prompt(message)
+
+            # Update session data
+            self.session_data.update(
+                {
+                    "messages": processor.get_history(),
+                    "data": processor.get_data(),
+                    "escalation_data": processor.get_escalation_data(),
+                }
+            )
+
+            return reply, end_call, escalation_info
+        else:
+            # Fallback response if components aren't available
+            return "I'm sorry, but I'm not fully initialized yet.", False, {}
 
     def _get_system_prompt(self) -> str:
         """Get system prompt for patient intake."""
@@ -114,6 +183,12 @@ class PatientIntakeEnvironment(Environment):
             "Once ALL basic information is collected, tell the user you need to ask some detailed questions about their symptoms."
         )
 
+    def get_function_schemas(self) -> list[Dict[str, Any]]:
+        """Get function schemas for OpenAI function calling."""
+        if self.tools and hasattr(self.tools, "get_function_schemas"):
+            return self.tools.get_function_schemas()
+        return []
+
 
 def get_environment(
     db: Optional[Any] = None,
@@ -122,15 +197,31 @@ def get_environment(
     vector_store: Optional[VectorStore] = None,
     llm_judge: Optional[LLMJudge] = None,
     data_manager: Optional[DataManager] = None,
+    openai_client: Optional[OpenAI] = None,
 ) -> PatientIntakeEnvironment:
     """Get the patient intake environment."""
-    # For now, we'll use placeholder tools
-    # These will be properly defined in the next phase
-    tools = None
+    # Create tools
+    tools = PatientIntakeTools()
     user_tools = None
 
-    # Load policy (we'll create this in the next phase)
-    policy = "Patient intake policy placeholder"
+    # Load policy
+    policy_path = os.path.join(
+        os.path.dirname(__file__),
+        "..",
+        "..",
+        "..",
+        "..",
+        "data",
+        "siva",
+        "domains",
+        "patient_intake",
+        "main_policy.md",
+    )
+    try:
+        with open(policy_path, "r") as f:
+            policy = f.read()
+    except FileNotFoundError:
+        policy = "Patient intake policy placeholder"
 
     return PatientIntakeEnvironment(
         domain_name="patient_intake",
@@ -140,6 +231,7 @@ def get_environment(
         vector_store=vector_store,
         llm_judge=llm_judge,
         data_manager=data_manager,
+        openai_client=openai_client,
     )
 
 

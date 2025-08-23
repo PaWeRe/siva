@@ -17,7 +17,10 @@ from core.data_manager import DataManager
 from core.processor import UnifiedProcessor
 from openai import OpenAI
 
-from .domains.patient_intake.environment import PatientIntakeEnvironment
+from .domains.patient_intake.environment import (
+    PatientIntakeEnvironment,
+    get_environment,
+)
 from .domains.patient_intake.tools import PatientIntakeTools
 from .domains.patient_intake.data_model import PatientIntakeDB
 
@@ -44,17 +47,13 @@ class SIVABridge:
 
         # Initialize tau2-bench components
         self.patient_intake_db = PatientIntakeDB()
-        self.patient_intake_tools = PatientIntakeTools()
 
         # Create environment with your existing components
-        self.environment = PatientIntakeEnvironment(
-            domain_name="patient_intake",
-            policy="Patient intake policy placeholder",
-            tools=self.patient_intake_tools,
-            user_tools=None,  # We'll add this later
+        self.environment = get_environment(
             vector_store=vector_store,
             llm_judge=llm_judge,
             data_manager=data_manager,
+            openai_client=openai_client,
         )
 
     def create_legacy_processor(self, session: Dict[str, Any]) -> UnifiedProcessor:
@@ -105,9 +104,44 @@ class SIVABridge:
         Process a message using the new tau2-bench structure.
         This is the future implementation we're migrating toward.
         """
-        # For now, this is a placeholder that calls the legacy method
-        # In future commits, this will be replaced with actual tau2-bench logic
-        return self.process_message_legacy(session_id, message)
+        # Set up the environment state
+        session = self._get_or_create_session(session_id)
+
+        # Initialize environment with session data
+        self.environment.set_state(
+            initialization_data=session.get("data", {}),
+            initialization_actions=[],
+            message_history=session.get("messages", []),
+        )
+
+        # Process the message using the environment
+        reply, end_call, escalation_info = self.environment.process_message(message)
+
+        # Update session with new data
+        session.update(
+            {
+                "messages": self.environment.session_data.get("messages", []),
+                "data": self.environment.session_data.get("data", {}),
+                "escalation_data": self.environment.session_data.get(
+                    "escalation_data", {}
+                ),
+            }
+        )
+
+        return reply, end_call, escalation_info
+
+    def get_function_schemas(self) -> list[Dict[str, Any]]:
+        """
+        Get function schemas for OpenAI function calling.
+        This provides access to the healthcare tools.
+        """
+        return self.environment.get_function_schemas()
+
+    def handle_tool_call(self, tool_call: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Handle a tool call using the tau2-bench environment.
+        """
+        return self.environment.get_response(tool_call)
 
     def _get_or_create_session(self, session_id: str) -> Dict[str, Any]:
         """
