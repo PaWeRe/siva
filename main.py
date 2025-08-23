@@ -4,7 +4,18 @@ from fastapi import FastAPI, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 from openai import OpenAI
 
-from config.settings import settings
+# Import new settings module
+from src.siva.settings import settings, get_siva_config
+
+# Import old settings for backward compatibility
+try:
+    from config.settings import settings as old_settings
+
+    USE_OLD_SETTINGS = True
+except ImportError:
+    USE_OLD_SETTINGS = False
+    old_settings = None
+
 from core.data_manager import DataManager
 from core.llm_judge import LLMJudge
 from core.vector_store import VectorStore

@@ -6,7 +6,16 @@ from fastapi import WebSocket
 from cartesia import AsyncCartesia
 from openai import OpenAI
 
-from config.settings import settings
+# Import new settings module
+try:
+    from src.siva.settings import settings
+
+    print("Using new SIVA settings")
+except ImportError:
+    # Fallback to old settings for backward compatibility
+    from config.settings import settings
+
+    print("Using old SIVA settings")
 
 
 async def websocket_tts(websocket: WebSocket):
@@ -14,6 +23,16 @@ async def websocket_tts(websocket: WebSocket):
     print("TTS WebSocket connection received")
     await websocket.accept()
     print("TTS WebSocket accepted")
+
+    # Debug: Print settings values
+    print(
+        f"Cartesia API key: {settings.cartesia_api_key[:10]}..."
+        if settings.cartesia_api_key
+        else "No Cartesia API key"
+    )
+    print(f"Sonic model ID: {settings.sonic_model_id}")
+    print(f"Voice ID: {settings.voice_id}")
+
     client = AsyncCartesia(api_key=settings.cartesia_api_key)
     print("Cartesia client created")
     try:
@@ -42,7 +61,7 @@ async def websocket_tts(websocket: WebSocket):
         async for out in output_generate:
             if out.audio is not None:
                 chunk_count += 1
-                # print(f"Sending chunk {chunk_count}: {len(out.audio)} bytes")
+                print(f"Sending chunk {chunk_count}: {len(out.audio)} bytes")
                 await websocket.send_bytes(out.audio)
 
         print(f"Finished sending {chunk_count} chunks")
