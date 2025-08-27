@@ -1,0 +1,140 @@
+# Patient Intake Database Configuration
+# This file contains patient intake system configuration and validation data
+
+[system]
+clinic_name = "Tsidi Health Services"
+clinic_location = "Main Campus"
+clinic_phone = "+1-555-123-4567"
+clinic_hours = "Monday-Friday 8:00 AM - 6:00 PM"
+emergency_contact = "+1-555-911-0000"
+
+[care_routes]
+emergency = "Immediate medical attention required"
+urgent = "Same-day care needed"
+routine = "Scheduled appointment"
+self_care = "Home treatment recommended"
+information = "Educational consultation"
+
+[validation_rules]
+min_age = 0
+max_age = 120
+required_fields = ["full_name", "birthday", "reason_for_visit"]
+optional_fields = ["prescriptions", "allergies", "medical_conditions", "symptoms"]
+
+[symptom_severity_scale]
+min = 1
+max = 10
+description = "1 = Mild, 5 = Moderate, 10 = Severe"
+
+[medical_conditions]
+common_conditions = [
+    "Hypertension",
+    "Diabetes",
+    "Asthma",
+    "Arthritis",
+    "Depression",
+    "Anxiety",
+    "High cholesterol",
+    "GERD",
+    "Migraines",
+    "Insomnia",
+    "Obesity",
+    "Heart disease",
+    "COPD",
+    "Hypothyroidism",
+    "Fibromyalgia"
+]
+
+[common_allergies]
+allergens = [
+    "Penicillin",
+    "Peanuts",
+    "Shellfish",
+    "Latex",
+    "Sulfa drugs",
+    "Aspirin",
+    "Codeine",
+    "Eggs",
+    "Dairy",
+    "Wheat",
+    "Tree nuts",
+    "Soy",
+    "Fish",
+    "Strawberries",
+    "Kiwi"
+]
+
+[common_medications]
+prescriptions = [
+    "Lisinopril",
+    "Metformin",
+    "Atorvastatin",
+    "Amlodipine",
+    "Omeprazole",
+    "Ibuprofen",
+    "Acetaminophen",
+    "Albuterol",
+    "Zoloft",
+    "Xanax"
+]
+
+[emergency_symptoms]
+life_threatening = [
+    "Severe chest pain",
+    "Difficulty breathing",
+    "Stroke symptoms",
+    "Unconsciousness",
+    "Severe bleeding",
+    "Anaphylaxis"
+]
+
+[urgent_symptoms]
+same_day_care = [
+    "High fever",
+    "Severe pain",
+    "Dehydration",
+    "Broken bones",
+    "Severe infections"
+]
+
+[patient_profiles]
+# Sample patient profiles for testing
+[[patient_profiles]]
+patient_id = "P001"
+full_name = "John Smith"
+birthday = "1985-06-15"
+prescriptions = ["Lisinopril 10mg daily"]
+allergies = ["Penicillin"]
+conditions = ["Hypertension"]
+
+[[patient_profiles]]
+patient_id = "P002"
+full_name = "Sarah Johnson"
+birthday = "1990-11-22"
+prescriptions = []
+allergies = []
+conditions = []
+
+[[patient_profiles]]
+patient_id = "P003"
+full_name = "Michael Davis"
+birthday = "1978-04-30"
+prescriptions = []
+allergies = ["Peanuts"]
+conditions = []
+
+[[patient_profiles]]
+patient_id = "P004"
+full_name = "Lisa Garcia"
+birthday = "1973-03-12"
+prescriptions = ["Metformin 500mg twice daily", "Atorvastatin 20mg daily"]
+allergies = ["Sulfa drugs"]
+conditions = ["Diabetes", "High cholesterol"]
+
+[[patient_profiles]]
+patient_id = "P005"
+full_name = "Robert Wilson"
+birthday = "1958-09-08"
+prescriptions = ["Ibuprofen 400mg as needed", "Omeprazole 20mg daily"]
+allergies = ["Aspirin"]
+conditions = ["Arthritis", "GERD"]

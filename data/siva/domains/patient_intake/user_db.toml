@@ -1,0 +1,49 @@
+# Patient Intake User Database Configuration
+# This file contains user-specific data for patient intake simulations
+
+[patient]
+# Current patient information
+full_name = "John Smith"
+birthday = "1985-06-15"
+age = 39
+gender = "male"
+phone_number = "+1-555-123-4567"
+email = "john.smith@example.com"
+
+[patient.medical_history]
+prescriptions = ["Lisinopril 10mg daily"]
+allergies = ["Penicillin"]
+conditions = ["Hypertension"]
+last_visit = "2024-12-15"
+primary_care_physician = "Dr. Sarah Johnson"
+
+[patient.current_visit]
+reason_for_visit = "Annual checkup"
+appointment_time = "2025-02-25 14:00:00"
+urgency_level = "routine"
+symptoms = []
+
+[patient.communication_preferences]
+language = "English"
+preferred_contact_method = "phone"
+communication_style = "cooperative"
+special_needs = []
+
+[patient.insurance]
+provider = "Blue Cross Blue Shield"
+policy_number = "BCBS123456789"
+group_number = "GRP001"
+coverage_type = "PPO"
+
+[patient.emergency_contact]
+name = "Jane Smith"
+relationship = "Spouse"
+phone = "+1-555-123-4568"
+address = "123 Main St, Anytown, CA 90210"
+
+[system]
+session_id = "PI_SESSION_001"
+session_start_time = "2025-02-25 13:45:00"
+agent_name = "John"
+clinic_name = "Tsidi Health Services"
+current_phase = "greeting"
