@@ -8,7 +8,7 @@ from openai import OpenAI
 
 # Import new settings module
 try:
-    from src.siva.settings import settings
+    from siva.settings import settings
 
     print("Using new SIVA settings")
 except ImportError:

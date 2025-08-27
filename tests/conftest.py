@@ -1,12 +1,19 @@
+import sys
+from pathlib import Path
 from typing import Callable
+
+# Add src directory to Python path for absolute imports
+src_path = Path(__file__).parent.parent / "src"
+if str(src_path) not in sys.path:
+    sys.path.insert(0, str(src_path))
 
 import pytest
 
 # Use siva imports instead of tau2 imports
-from src.siva.data_model.tasks import Task
-from src.siva.environment.environment import Environment
-from src.siva.registry import registry
-from src.siva.run import get_tasks
+from siva.data_model.tasks import Task
+from siva.environment.environment import Environment
+from siva.registry import registry
+from siva.run import get_tasks
 
 
 @pytest.fixture

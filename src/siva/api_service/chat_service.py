@@ -8,9 +8,9 @@ from typing import Dict, Any, Optional, Tuple
 from fastapi import APIRouter, HTTPException, Depends
 from fastapi.responses import JSONResponse
 
-from ..settings import settings
-from ..bridge import get_bridge, SIVABridge
-from ..domains.patient_intake.data_model import PatientIntakeDB
+from siva.settings import settings
+from siva.bridge import get_bridge, SIVABridge
+from siva.domains.patient_intake.data_model import PatientIntakeDB
 
 
 class ChatService:
@@ -87,7 +87,7 @@ def get_chat_service(bridge: SIVABridge = Depends(get_bridge)) -> ChatService:
 
 
 # Create router for new API endpoints
-router = APIRouter(prefix="/api/v2", tags=["chat"])
+router = APIRouter(tags=["chat"])
 
 
 @router.post("/chat")

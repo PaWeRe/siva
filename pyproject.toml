@@ -23,6 +23,14 @@ dependencies = [
     "scikit-learn",
     "pydantic-settings",
     "requests>=2.32.4",
+    "pytest>=8.3.5",
+    "httpx>=0.28.1",
+    "pandas>=2.0.3",
+    "toml>=0.10.2",
+    "addict>=2.4.0",
+    "deepdiff>=8.4.2",
+    "docstring-parser>=0.17.0",
+    "litellm>=1.75.9",
 ]
 
 [project.optional-dependencies]
@@ -39,8 +47,8 @@ Homepage = "https://github.com/siva-team/siva"
 Repository = "https://github.com/siva-team/siva"
 
 [tool.setuptools.packages.find]
-where = ["."]
-include = ["api*", "config*", "core*", "frontend*"]
+where = ["src"]
+include = ["siva*", "siva.*"]
 
 [tool.black]
 line-length = 88

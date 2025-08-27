@@ -2,11 +2,19 @@
 Test configuration migration from old config/settings.py to new src/siva/settings.py
 """
 
-import pytest
+import sys
+from pathlib import Path
 import os
 from unittest.mock import patch
 
-from src.siva.settings import settings, get_siva_config, get_tau2_config
+# Add src directory to Python path for absolute imports
+src_path = Path(__file__).parent.parent / "src"
+if str(src_path) not in sys.path:
+    sys.path.insert(0, str(src_path))
+
+import pytest
+
+from siva.settings import settings, get_siva_config, get_tau2_config
 
 
 class TestConfigurationMigration:
@@ -67,7 +75,7 @@ class TestConfigurationMigration:
             },
         ):
             # Recreate settings with new environment
-            from src.siva.settings import SivaSettings
+            from siva.settings import SivaSettings
 
             test_settings = SivaSettings()
 

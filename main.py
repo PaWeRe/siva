@@ -1,11 +1,19 @@
 """SIVA FastAPI server main entry point."""
 
+import sys
+from pathlib import Path
+
+# Add src directory to Python path for absolute imports
+src_path = Path(__file__).parent / "src"
+if str(src_path) not in sys.path:
+    sys.path.insert(0, str(src_path))
+
 from fastapi import FastAPI, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 from openai import OpenAI
 
 # Import new settings module
-from src.siva.settings import settings, get_siva_config
+from siva.settings import settings, get_siva_config
 
 # Import old settings for backward compatibility
 try:
@@ -24,10 +32,10 @@ from api.embedding_viz import router as embedding_router
 from api.websockets import websocket_tts, websocket_stt
 
 # Import the bridge for tau2-bench integration
-from src.siva.bridge import initialize_bridge
+from siva.bridge import initialize_bridge
 
 # Import new API service
-from src.siva.api_service.main_router import main_router as new_api_router
+from siva.api_service.main_router import main_router as new_api_router
 
 # Create FastAPI app
 app = FastAPI(
