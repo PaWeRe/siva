@@ -1,130 +1,328 @@
-# SIVA - Self-Improving Voice Agent Framework
+# SIVA - Self-Improving Virtual Agent
 
-A modular, **self-improving voice agent framework** that **learns from expert feedback**, extracts important concepts from conversations in **real-time** and validates predictions with a local vector db of similar cases (used for few-shot prompting and confidence assessment) and optionally public knowledge sources.
+A tau2-bench inspired agent building framework for healthcare patient intake with enhanced workflow management and validation.
 
-![SIVA Demo - 10x Speed](assets/siva_demo_10x.gif)
+## Overview
 
-## 🚀 Quick Start
+SIVA is a comprehensive agent framework that implements a tau2-bench inspired approach to building conversational AI agents. The system features:
 
-**Requirements:** Python 3.8+, [uv](https://docs.astral.sh/uv/) package manager, browser with microphone access
+- **Structured Workflow Management**: Phased approach to patient intake with validation at each stage
+- **Enhanced Function Calling**: Proper verification and validation of all collected data
+- **Termination Logic**: Prevents goodbye loops and ensures proper conversation termination
+- **Timeout Management**: Automatic conversation termination based on duration and inactivity
+- **Escalation Handling**: Proper escalation to human agents when needed
+- **Simulation Framework**: Complete tau2-bench compatible simulation infrastructure
+- **Task Generation**: Automated creation of realistic patient intake scenarios
 
-1. **Setup Environment:**
-   ```bash
-   # Using uv (automatically handles virtual environment)
-   uv run python --version
-   ```
+## Key Features
 
-2. **Configure API Keys** (`.env` file):
-   ```
-   OPENAI_API_KEY=sk-your-key-here
-   CARTESIA_API_KEY=your-cartesia-key-here
-   DOMAIN_API_KEY=your-domain-specific-key-here  # For domain-specific evidence sources
-   ```
+### 1. Workflow Phases
+The patient intake process is divided into clear phases:
 
-3. **Launch the Voice Agent:**
-   ```bash
-   uv run python run_voice_app.py
-   ```
-   Opens the voice client at [http://localhost:3000/voice_client.html](http://localhost:3000/voice_client.html) and dashboard at [http://localhost:8000/dashboard](http://localhost:8000/dashboard) 
+- **Greeting**: Initial introduction and warm welcome
+- **Basic Intake**: Collect essential patient information
+- **Detailed Symptoms**: Gather comprehensive symptom information
+- **Routing**: Determine appropriate care route
+- **Escalation**: Handle cases requiring human intervention
+- **Termination**: Proper conversation conclusion
 
+### 2. Validation System
+Each piece of collected information is validated:
 
+- **Name Validation**: Ensures first and last name are provided
+- **Birthday Validation**: Checks format (YYYY-MM-DD) and reasonableness
+- **Prescription Validation**: Validates medication names and dosages
+- **Symptom Validation**: Ensures severity scale (1-10) and required fields
+- **Routing Validation**: Validates care route selection and reasoning
 
-## 🎯 Use Cases & Applications
+### 3. Enhanced Function Calling
+The system uses structured function calls with validation:
 
-### 🏥 Medical: Automated patient intake 
-**Current Implementation**: Patient intake and triage with "clinical pearl" (de-identified clinical decisions and reasonings) extraction
+```python
+# Example function call with validation
+{
+    "name": "verify_birthday",
+    "arguments": {
+        "birthday": "1990-05-15"
+    }
+}
+```
 
-**Key Features:**
-- **Voice-driven patient intake** with symptom analysis
-- **5-category routing system** (Emergency, Urgent, Routine, Self-Care, Information)
-  - **🚨 Emergency**: Life-threatening conditions (chest pain, stroke signs, difficulty breathing)
-  - **⚡ Urgent**: Serious but not immediately life-threatening (high fever, severe pain)
-  - **📅 Routine**: Ongoing or non-urgent issues (mild symptoms, follow-ups, preventive care)
-  - **🏠 Self-Care**: Minor issues manageable at home (mild cold, minor headache)
-  - **ℹ️ Information**: Questions about medication, prevention, or general health advice
-- **Key clinical decisions and reasoning detection** from expert corrections and conversation transcripts (aka "clinical pearls")
+### 4. Termination Prevention
+The system prevents goodbye loops by:
 
-**Value Proposition**: Captures unwritten clinical wisdom from physician conversations with zero overhead.
+- Detecting termination keywords in responses
+- Using explicit termination function calls
+- Implementing timeout mechanisms
+- Tracking conversation state
 
-## 🔄 Self-Improvement Process
+### 5. Simulation Infrastructure
+Complete tau2-bench compatible simulation system:
 
-![SIVA Framework Architecture](assets/flowchart_self_learning_agent.jpeg)
+- **Patient Intake Domain**: Specialized environment for healthcare scenarios
+- **Task Generation**: Automated creation of realistic patient scenarios
+- **User Simulation**: Healthcare-specific patient behavior simulation
+- **Evaluation Framework**: Comprehensive performance metrics
 
-## 🔧 System Architecture
+## Architecture
 
 ### Core Components
-- **Frontend**: Pure HTML/JavaScript voice client with real-time audio streaming
-- **API Layer**: FastAPI routes and WebSocket handlers for real-time communication
-- **Configuration**: Centralized settings management with environment variable validation
-- **Core Logic**: Vector store + LLM judge + data manager for continuous improvement
-- **Business Logic**: Modular conversation processor with domain-specific routing
 
-### AI Models & Usage
+1. **LLMAgent**: Enhanced agent with workflow management
+2. **PatientIntakeTools**: Validated tools for data collection
+3. **WorkflowPhase**: Enumeration of conversation phases
+4. **ValidationStatus**: Status tracking for each data field
+5. **PatientData**: Structured data model with validation
+6. **PatientIntakeEnvironment**: Domain-specific environment
+7. **PatientIntakeUserSimulator**: Healthcare-specific user simulation
 
-#### **🎤 Speech Processing**
-- **STT**: OpenAI **Whisper v1** (`whisper-1`) - Converts speech to text with high accuracy
-- **TTS**: Cartesia **Sonic-2** (`sonic-2`) - Natural voice synthesis for agent responses
+### State Management
 
-#### **🧠 Language Models**
-- **Main Conversation Agent**: OpenAI **GPT-3.5 Turbo 1106** (`gpt-3.5-turbo-1106`)
-  - **Function Calling**: Structured data extraction and domain-specific processing
-  - **State Management**: Progressive conversation phases
-  - **Decision Making**: Domain-specific recommendations with reasoning
-  - **Temperature**: 0.3 (balanced accuracy/creativity), Max tokens: 300
+The agent maintains comprehensive state including:
 
-- **LLM Judge**: OpenAI **GPT-3.5 Turbo** (`gpt-3.5-turbo`)
-  - **Feedback Analysis**: Extracts key insights from expert corrections
-  - **Knowledge Extraction**: Identifies patterns and pearls from interactions
-  - **Data Curation**: Transforms conversations into structured training examples
+- Current workflow phase
+- Patient data with validation status
+- Conversation timing
+- Escalation and termination reasons
 
-#### **🔍 Vector Similarity System**
-- **Embedding Model**: OpenAI **text-embedding-3-small** (`text-embedding-3-small`)
-  - **Purpose**: Converts conversations to 1536-dimensional vectors for similarity search
-  - **Similarity Computation**: Cosine similarity via scikit-learn
-  - **Threshold**: 0.75 minimum similarity for "similar cases"
-  - **Retrieval**: Top-5 similar cases for few-shot prompting
+## Usage
 
-## 📊 Dashboard Monitoring
+### Basic Setup
 
-Real-time dashboard tracking: total conversations, vector store size, system accuracy, route distribution, learning progress, and recent activity. Access at [http://localhost:8000/dashboard](http://localhost:8000/dashboard) (auto-opens when using `run_voice_app.py`).
+```python
+from siva.agent.llm_agent import LLMAgent
+from siva.domains.patient_intake.tools import create_patient_intake_tools
 
+# Create tools
+tools = create_patient_intake_tools()
 
-## 📁 Project Structure
+# Create agent
+agent = LLMAgent(
+    tools=tools,
+    domain_policy="path/to/policy.md",
+    llm="gpt-4",
+    max_conversation_duration=1800,  # 30 minutes
+    max_inactivity_duration=300,     # 5 minutes
+)
 
-```
-siva/
-├── pyproject.toml             # Package configuration and dependencies
-├── main.py                    # FastAPI server entry point
-├── run_voice_app.py           # Application launcher
-├── serve_client.py            # Voice client server
-├── api/                       # API layer
-│   ├── routes.py              # FastAPI routes and endpoints
-│   └── websockets.py          # WebSocket handlers (TTS/STT)
-├── config/                    # Configuration management
-│   └── settings.py            # Pydantic settings with env validation
-├── core/                      # Business logic
-│   ├── data_manager.py        # Persistent data storage
-│   ├── llm_judge.py           # Evaluation and knowledge extraction
-│   ├── vector_store.py        # Experience-based evidence storage
-│   ├── processor.py           # Main conversation processor
-│   └── schemas.py             # Pydantic models and function schemas
-├── frontend/                  # Static web assets
-│   ├── voice_client.html      # Voice interface
-│   └── dashboard.html         # Performance monitoring
-├── old/                       # Legacy code (preserved for reference)
-├── assets/                    # Media files
-│   ├── siva_demo_10x.gif      # Demo recording
-│   └── flowchart_self_learning_agent.jpeg # Architecture overview
-└── siva_data/                 # Learning database + knowledge pearls
+# Initialize state
+state = agent.get_init_state()
 ```
 
+### Workflow Example
 
+```python
+# 1. Greeting Phase
+user_message = UserMessage(content="Hello, I need to schedule an appointment")
+response, state = agent.generate_next_message(user_message, state)
 
+# 2. Basic Intake Phase
+user_message = UserMessage(content="My name is John Smith")
+response, state = agent.generate_next_message(user_message, state)
 
+# 3. Continue through phases...
+# The agent automatically advances phases when validation is complete
+```
 
+### Validation Example
 
+```python
+# The agent will validate each response
+{
+    "name": "verify_fullname",
+    "arguments": {
+        "names": [{"first_name": "John", "last_name": "Smith"}]
+    }
+}
 
+# Returns validation result
+{
+    "success": True,
+    "message": "Stored full name: John Smith",
+    "validation_status": "valid"
+}
+```
 
+## Simulation and Task Creation
 
+### Creating Patient Intake Tasks
 
-**SIVA transforms voice interactions into continuously improving AI systems, capturing domain expertise and building collective intelligence across any field.**
+The system includes an automated task generation system for creating realistic patient intake scenarios:
+
+```bash
+# Generate patient intake tasks
+uv run python src/siva/domains/patient_intake/tasks/create_tasks.py
+
+# This creates tasks.json with 7 realistic patient scenarios:
+# - Simple scenarios (basic information collection)
+# - Moderate scenarios (complex medical history)
+# - Complex scenarios (challenging communication or multiple issues)
+```
+
+The task generation system creates scenarios with:
+- **Realistic Patient Profiles**: Names, ages, medical histories
+- **Varied Communication Styles**: Cooperative, anxious, confused, reluctant, rushed
+- **Medical Complexity**: Different levels of symptoms and conditions
+- **Evaluation Criteria**: Expected tool calls and validation requirements
+
+### Running Simulations
+
+SIVA provides a complete simulation framework for evaluating agent performance:
+
+```bash
+# Run a solo agent simulation (agent with all information upfront)
+uv run python src/siva/cli_main.py run \
+  --domain patient_intake \
+  --num-tasks 1 \
+  --num-trials 1 \
+  --agent llm_agent_solo \
+  --user dummy_user \
+  --max-steps 10
+
+# Run a full agent simulation with patient simulator
+uv run python src/siva/cli_main.py run \
+  --domain patient_intake \
+  --num-tasks 1 \
+  --num-trials 1 \
+  --agent llm_agent \
+  --user patient_intake_user_simulator \
+  --max-steps 50
+```
+
+### Simulation Configuration
+
+The simulation system supports various configurations:
+
+```bash
+# Available domains
+--domain patient_intake              # Standard patient intake
+--domain patient_intake-workflow     # Workflow-based patient intake
+
+# Available agents
+--agent llm_agent                    # Full conversational agent
+--agent llm_agent_solo              # Solo agent (all info upfront)
+--agent llm_agent_gt                # Agent with oracle plan
+
+# Available users
+--user dummy_user                    # Simple dummy user
+--user user_simulator               # Generic user simulator
+--user patient_intake_user_simulator # Healthcare-specific patient simulator
+
+# Task selection
+--task-set-name patient_intake       # Default task set
+--task-set-name patient_intake_full  # Full task set
+--task-set-name patient_intake_small # Small task set
+--task-ids PI001 PI002              # Specific task IDs
+--num-tasks 5                       # Number of tasks to run
+```
+
+### Simulation Results
+
+Simulations generate comprehensive results including:
+
+- **Performance Metrics**: Reward scores, pass rates, costs
+- **Action Evaluation**: Tool call success rates
+- **Conversation Analysis**: Duration, termination reasons
+- **Detailed Logs**: Complete conversation transcripts
+
+Results are saved to `data/siva/simulations/` with timestamps.
+
+### Patient Intake User Simulator
+
+The system includes a specialized patient simulator that:
+
+- **Generates Realistic Responses**: Based on patient profiles and communication styles
+- **Handles Medical Information**: Names, birthdays, prescriptions, allergies, conditions
+- **Simulates Communication Styles**: Cooperative, anxious, confused, reluctant, rushed
+- **Provides Contextual Responses**: Tailored to the specific patient scenario
+
+## Configuration
+
+### Environment Variables
+
+```bash
+export OPENAI_API_KEY="your-api-key"
+export VECTOR_STORE_PATH="path/to/vector/store"
+export LLM_MODEL="gpt-4"
+```
+
+### Policy Configuration
+
+The system uses markdown policy files that define:
+
+- Agent behavior and responsibilities
+- Workflow phases and requirements
+- Validation rules
+- Escalation criteria
+
+### Database Configuration
+
+Patient intake specific data is configured in:
+
+- **`data/siva/domains/patient_intake/db.toml`**: System configuration, medical data, validation rules
+- **`data/siva/domains/patient_intake/user_db.toml`**: Patient-specific information and preferences
+
+## Testing
+
+### Running Tests
+
+```bash
+# Install dependencies
+uv sync
+
+# Run tests
+uv run pytest tests/
+
+# Run specific test
+uv run pytest tests/test_agent.py -k "test_workflow_validation"
+```
+
+### Test Coverage
+
+The test suite covers:
+
+- Workflow phase transitions
+- Data validation
+- Function calling
+- Termination logic
+- Timeout handling
+- Simulation infrastructure
+- Task generation
+
+## Troubleshooting
+
+### Common Issues
+
+1. **Goodbye Loop**: Ensure termination function is called properly
+2. **Incomplete Data**: Check validation status for each field
+3. **Phase Stuck**: Verify all required fields are validated
+4. **Timeout Issues**: Adjust conversation and inactivity durations
+5. **Simulation Errors**: Check API keys and task configuration
+6. **Task Generation**: Ensure all required data files are present
+
+### Debug Mode
+
+Enable debug logging:
+
+```python
+import logging
+logging.basicConfig(level=logging.DEBUG)
+```
+
+## Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Add tests
+5. Submit a pull request
+
+## License
+
+This project is licensed under the MIT License - see tau2-bench's LICENSE file for details.
+
+## Acknowledgments
+
+- Inspired by [tau2-bench](https://github.com/sierra-research/tau2-bench)
+- Built with modern Python practices
+- Enhanced for healthcare applications

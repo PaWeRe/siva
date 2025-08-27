@@ -1,17 +1,21 @@
 # Copyright Sierra
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Union
 from dataclasses import dataclass
 import json
+import re
 from datetime import datetime
+from enum import Enum
+
+from siva.environment.tool import Tool, as_tool
 
 
-# For now, we'll create a simple placeholder class
-# This will be replaced with proper tau2-bench imports in future phases
-class Tools:
-    """Placeholder for tau2 Tools class."""
+class ValidationStatus(Enum):
+    """Enumeration of validation statuses."""
 
-    def __init__(self):
-        pass
+    PENDING = "pending"
+    VALID = "valid"
+    INVALID = "invalid"
+    REQUIRES_CLARIFICATION = "requires_clarification"
 
 
 @dataclass
@@ -32,12 +36,12 @@ class TTSResult:
     duration_ms: int
 
 
-class PatientIntakeTools(Tools):
-    """Tools for patient intake domain."""
+class PatientIntakeTools:
+    """Enhanced tools for patient intake domain with validation."""
 
     def __init__(self, session_data: Optional[Dict[str, Any]] = None):
-        super().__init__()
         self.session_data = session_data or {}
+        self.validation_status = {}
 
     def speech_to_text(self, audio_data: bytes) -> STTResult:
         """
@@ -76,19 +80,41 @@ class PatientIntakeTools(Tools):
 
     def verify_fullname(self, names: List[Dict[str, str]]) -> Dict[str, Any]:
         """
-        Collect the user's full name.
+        Collect and validate the user's full name.
 
         Args:
             names: List of name objects with first_name and last_name
 
         Returns:
-            Success status and stored name
+            Success status and validation result
         """
         if not names:
-            return {"success": False, "error": "No names provided"}
+            return {
+                "success": False,
+                "error": "No names provided",
+                "validation_status": ValidationStatus.INVALID.value,
+            }
 
         name = names[0]  # Take the first name
-        full_name = f"{name.get('first_name', '')} {name.get('last_name', '')}".strip()
+        first_name = name.get("first_name", "").strip()
+        last_name = name.get("last_name", "").strip()
+
+        # Validation
+        if not first_name or not last_name:
+            return {
+                "success": False,
+                "error": "Both first and last name are required",
+                "validation_status": ValidationStatus.REQUIRES_CLARIFICATION.value,
+            }
+
+        if len(first_name) < 2 or len(last_name) < 2:
+            return {
+                "success": False,
+                "error": "Names must be at least 2 characters long",
+                "validation_status": ValidationStatus.INVALID.value,
+            }
+
+        full_name = f"{first_name} {last_name}"
 
         # Store in session data
         if "data" not in self.session_data:
@@ -99,38 +125,62 @@ class PatientIntakeTools(Tools):
             "success": True,
             "message": f"Stored full name: {full_name}",
             "full_name": full_name,
+            "validation_status": ValidationStatus.VALID.value,
         }
 
     def verify_birthday(self, birthday: str) -> Dict[str, Any]:
         """
-        Verify the user's birthday.
+        Verify and validate the user's birthday.
 
         Args:
             birthday: Birthday in YYYY-MM-DD format
 
         Returns:
-            Success status and stored birthday
+            Success status and validation result
         """
-        # Basic validation
+        # Format validation
+        if not re.match(r"^\d{4}-\d{2}-\d{2}$", birthday):
+            return {
+                "success": False,
+                "error": "Invalid format. Please use YYYY-MM-DD format",
+                "validation_status": ValidationStatus.INVALID.value,
+            }
+
         try:
-            datetime.strptime(birthday, "%Y-%m-%d")
+            # Parse date
+            date_obj = datetime.strptime(birthday, "%Y-%m-%d")
+            current_year = datetime.now().year
+
+            # Reasonableness check (age between 0 and 120)
+            if date_obj.year < current_year - 120 or date_obj.year > current_year:
+                return {
+                    "success": False,
+                    "error": "Birthday seems unreasonable. Please check the year.",
+                    "validation_status": ValidationStatus.REQUIRES_CLARIFICATION.value,
+                }
+
+            # Store in session data
+            if "data" not in self.session_data:
+                self.session_data["data"] = {}
+            self.session_data["data"]["birthday"] = birthday
+
+            return {
+                "success": True,
+                "message": f"Stored birthday: {birthday}",
+                "birthday": birthday,
+                "validation_status": ValidationStatus.VALID.value,
+            }
+
         except ValueError:
-            return {"success": False, "error": "Invalid date format. Use YYYY-MM-DD"}
-
-        # Store in session data
-        if "data" not in self.session_data:
-            self.session_data["data"] = {}
-        self.session_data["data"]["birthday"] = birthday
-
-        return {
-            "success": True,
-            "message": f"Stored birthday: {birthday}",
-            "birthday": birthday,
-        }
+            return {
+                "success": False,
+                "error": "Invalid date format",
+                "validation_status": ValidationStatus.INVALID.value,
+            }
 
     def list_prescriptions(self, prescriptions: List[Dict[str, str]]) -> Dict[str, Any]:
         """
-        Collect the user's current prescriptions.
+        Collect and validate the user's current prescriptions.
 
         Args:
             prescriptions: List of prescription objects with medication and dosage
@@ -138,20 +188,49 @@ class PatientIntakeTools(Tools):
         Returns:
             Success status and stored prescriptions
         """
+        if not prescriptions:
+            # Allow empty list for "no prescriptions"
+            if "data" not in self.session_data:
+                self.session_data["data"] = {}
+            self.session_data["data"]["prescriptions"] = []
+
+            return {
+                "success": True,
+                "message": "No prescriptions recorded",
+                "prescriptions": [],
+                "validation_status": ValidationStatus.VALID.value,
+            }
+
+        # Validate each prescription
+        validated_prescriptions = []
+        for prescription in prescriptions:
+            medication = prescription.get("medication", "").strip()
+            dosage = prescription.get("dosage", "").strip()
+
+            if not medication:
+                return {
+                    "success": False,
+                    "error": "Medication name is required for each prescription",
+                    "validation_status": ValidationStatus.REQUIRES_CLARIFICATION.value,
+                }
+
+            validated_prescriptions.append({"medication": medication, "dosage": dosage})
+
         # Store in session data
         if "data" not in self.session_data:
             self.session_data["data"] = {}
-        self.session_data["data"]["prescriptions"] = prescriptions
+        self.session_data["data"]["prescriptions"] = validated_prescriptions
 
         return {
             "success": True,
-            "message": f"Stored {len(prescriptions)} prescriptions",
-            "prescriptions": prescriptions,
+            "message": f"Stored {len(validated_prescriptions)} prescription(s)",
+            "prescriptions": validated_prescriptions,
+            "validation_status": ValidationStatus.VALID.value,
         }
 
     def list_allergies(self, allergies: List[str]) -> Dict[str, Any]:
         """
-        Collect the user's allergies.
+        Collect and validate the user's allergies.
 
         Args:
             allergies: List of allergy strings
@@ -159,20 +238,41 @@ class PatientIntakeTools(Tools):
         Returns:
             Success status and stored allergies
         """
+        if not allergies:
+            # Allow empty list for "no allergies"
+            if "data" not in self.session_data:
+                self.session_data["data"] = {}
+            self.session_data["data"]["allergies"] = []
+
+            return {
+                "success": True,
+                "message": "No allergies recorded",
+                "allergies": [],
+                "validation_status": ValidationStatus.VALID.value,
+            }
+
+        # Validate and clean allergies
+        validated_allergies = []
+        for allergy in allergies:
+            cleaned_allergy = allergy.strip()
+            if cleaned_allergy:
+                validated_allergies.append(cleaned_allergy)
+
         # Store in session data
         if "data" not in self.session_data:
             self.session_data["data"] = {}
-        self.session_data["data"]["allergies"] = allergies
+        self.session_data["data"]["allergies"] = validated_allergies
 
         return {
             "success": True,
-            "message": f"Stored {len(allergies)} allergies",
-            "allergies": allergies,
+            "message": f"Stored {len(validated_allergies)} allergy(ies)",
+            "allergies": validated_allergies,
+            "validation_status": ValidationStatus.VALID.value,
         }
 
     def list_conditions(self, conditions: List[str]) -> Dict[str, Any]:
         """
-        Collect the user's medical conditions.
+        Collect and validate the user's medical conditions.
 
         Args:
             conditions: List of medical condition strings
@@ -180,20 +280,41 @@ class PatientIntakeTools(Tools):
         Returns:
             Success status and stored conditions
         """
+        if not conditions:
+            # Allow empty list for "no conditions"
+            if "data" not in self.session_data:
+                self.session_data["data"] = {}
+            self.session_data["data"]["medical_conditions"] = []
+
+            return {
+                "success": True,
+                "message": "No medical conditions recorded",
+                "conditions": [],
+                "validation_status": ValidationStatus.VALID.value,
+            }
+
+        # Validate and clean conditions
+        validated_conditions = []
+        for condition in conditions:
+            cleaned_condition = condition.strip()
+            if cleaned_condition:
+                validated_conditions.append(cleaned_condition)
+
         # Store in session data
         if "data" not in self.session_data:
             self.session_data["data"] = {}
-        self.session_data["data"]["conditions"] = conditions
+        self.session_data["data"]["medical_conditions"] = validated_conditions
 
         return {
             "success": True,
-            "message": f"Stored {len(conditions)} medical conditions",
-            "conditions": conditions,
+            "message": f"Stored {len(validated_conditions)} medical condition(s)",
+            "conditions": validated_conditions,
+            "validation_status": ValidationStatus.VALID.value,
         }
 
     def list_visit_reasons(self, visit_reasons: List[str]) -> Dict[str, Any]:
         """
-        Collect the user's reasons for visiting the doctor.
+        Collect and validate the user's reasons for visit.
 
         Args:
             visit_reasons: List of visit reason strings
@@ -201,112 +322,233 @@ class PatientIntakeTools(Tools):
         Returns:
             Success status and stored visit reasons
         """
+        if not visit_reasons:
+            return {
+                "success": False,
+                "error": "At least one reason for visit is required",
+                "validation_status": ValidationStatus.REQUIRES_CLARIFICATION.value,
+            }
+
+        # Validate and clean visit reasons
+        validated_reasons = []
+        for reason in visit_reasons:
+            cleaned_reason = reason.strip()
+            if cleaned_reason:
+                validated_reasons.append(cleaned_reason)
+
+        if not validated_reasons:
+            return {
+                "success": False,
+                "error": "At least one valid reason for visit is required",
+                "validation_status": ValidationStatus.REQUIRES_CLARIFICATION.value,
+            }
+
         # Store in session data
         if "data" not in self.session_data:
             self.session_data["data"] = {}
-        self.session_data["data"]["reason_for_visit"] = visit_reasons
+        self.session_data["data"]["visit_reasons"] = validated_reasons
 
         return {
             "success": True,
-            "message": f"Stored {len(visit_reasons)} visit reasons",
-            "visit_reasons": visit_reasons,
+            "message": f"Stored {len(validated_reasons)} visit reason(s)",
+            "visit_reasons": validated_reasons,
+            "validation_status": ValidationStatus.VALID.value,
         }
 
     def collect_detailed_symptoms(
         self, symptoms: List[Dict[str, Any]]
     ) -> Dict[str, Any]:
         """
-        Collect detailed information about patient symptoms.
+        Collect detailed symptom information.
 
         Args:
-            symptoms: List of symptom objects with symptom, severity, duration, etc.
+            symptoms: List of symptom objects with severity, duration, etc.
 
         Returns:
             Success status and stored symptoms
         """
+        if not symptoms:
+            return {
+                "success": False,
+                "error": "At least one symptom is required",
+                "validation_status": ValidationStatus.REQUIRES_CLARIFICATION.value,
+            }
+
+        # Validate each symptom
+        validated_symptoms = []
+        for symptom in symptoms:
+            symptom_name = symptom.get("symptom", "").strip()
+            severity = symptom.get("severity", 0)
+            duration = symptom.get("duration", "").strip()
+
+            if not symptom_name:
+                return {
+                    "success": False,
+                    "error": "Symptom name is required for each symptom",
+                    "validation_status": ValidationStatus.REQUIRES_CLARIFICATION.value,
+                }
+
+            # Validate severity (1-10 scale)
+            if not isinstance(severity, int) or severity < 1 or severity > 10:
+                return {
+                    "success": False,
+                    "error": "Severity must be a number between 1 and 10",
+                    "validation_status": ValidationStatus.INVALID.value,
+                }
+
+            validated_symptoms.append(
+                {
+                    "symptom": symptom_name,
+                    "severity": severity,
+                    "duration": duration,
+                    "associated_symptoms": symptom.get("associated_symptoms", []),
+                    "triggers": symptom.get("triggers", []),
+                }
+            )
+
         # Store in session data
         if "data" not in self.session_data:
             self.session_data["data"] = {}
-        self.session_data["data"]["symptoms"] = symptoms
+        self.session_data["data"]["detailed_symptoms"] = validated_symptoms
 
         return {
             "success": True,
-            "message": f"Stored {len(symptoms)} detailed symptoms",
-            "symptoms": symptoms,
+            "message": f"Stored {len(validated_symptoms)} detailed symptom(s)",
+            "symptoms": validated_symptoms,
+            "validation_status": ValidationStatus.VALID.value,
         }
 
     def determine_routing(self, route: str, reasoning: str) -> Dict[str, Any]:
         """
-        Determine appropriate care routing based on patient information and similar cases.
+        Determine appropriate care routing based on collected information.
 
         Args:
-            route: The recommended care route (emergency, urgent, routine, self_care, information)
-            reasoning: Brief explanation for the routing decision
+            route: Care route (emergency, urgent, routine, self_care, information)
+            reasoning: Reasoning for the routing decision
 
         Returns:
             Success status and routing decision
         """
         valid_routes = ["emergency", "urgent", "routine", "self_care", "information"]
+
         if route not in valid_routes:
             return {
                 "success": False,
-                "error": f"Invalid route. Must be one of: {valid_routes}",
+                "error": f"Invalid route. Must be one of: {', '.join(valid_routes)}",
+                "validation_status": ValidationStatus.INVALID.value,
+            }
+
+        if not reasoning.strip():
+            return {
+                "success": False,
+                "error": "Reasoning is required for routing decision",
+                "validation_status": ValidationStatus.REQUIRES_CLARIFICATION.value,
             }
 
         routing_decision = {
             "route": route,
-            "reasoning": reasoning,
+            "reasoning": reasoning.strip(),
             "timestamp": datetime.now().isoformat(),
         }
 
         # Store in session data
         if "data" not in self.session_data:
             self.session_data["data"] = {}
-        self.session_data["data"]["routing"] = routing_decision
+        self.session_data["data"]["routing_decision"] = routing_decision
 
         return {
             "success": True,
-            "message": f"Routing determined: {route}",
-            "routing": routing_decision,
+            "message": f"Routing decision made: {route}",
+            "routing_decision": routing_decision,
+            "validation_status": ValidationStatus.VALID.value,
         }
 
-    def get_similar_cases(self, symptoms: str, limit: int = 5) -> List[Dict[str, Any]]:
+    def escalate_to_human(self, reason: str) -> Dict[str, Any]:
         """
-        Get similar cases from vector store.
+        Escalate the conversation to a human agent.
 
         Args:
-            symptoms: Patient symptoms
-            limit: Maximum number of cases to return
+            reason: Reason for escalation
 
         Returns:
-            List of similar cases
+            Success status and escalation info
         """
-        # For now, return a placeholder
-        # This will be connected to your existing vector store logic
-        return [
-            {
-                "case_id": "placeholder_1",
-                "symptoms": "Similar symptoms",
-                "route": "routine",
-                "confidence": 0.8,
+        if not reason.strip():
+            return {
+                "success": False,
+                "error": "Escalation reason is required",
+                "validation_status": ValidationStatus.REQUIRES_CLARIFICATION.value,
             }
-        ]
+
+        escalation_info = {
+            "reason": reason.strip(),
+            "timestamp": datetime.now().isoformat(),
+            "patient_data": self.session_data.get("data", {}),
+        }
+
+        # Store in session data
+        if "escalation_data" not in self.session_data:
+            self.session_data["escalation_data"] = {}
+        self.session_data["escalation_data"] = escalation_info
+
+        return {
+            "success": True,
+            "message": f"Conversation escalated: {reason}",
+            "escalation_info": escalation_info,
+            "validation_status": ValidationStatus.VALID.value,
+        }
+
+    def terminate_conversation(self, reason: str) -> Dict[str, Any]:
+        """
+        Terminate the conversation.
+
+        Args:
+            reason: Reason for termination
+
+        Returns:
+            Success status and termination info
+        """
+        termination_info = {
+            "reason": reason.strip() if reason else "Workflow completed",
+            "timestamp": datetime.now().isoformat(),
+            "patient_data": self.session_data.get("data", {}),
+            "conversation_duration": self._get_conversation_duration(),
+        }
+
+        # Store in session data
+        if "termination_data" not in self.session_data:
+            self.session_data["termination_data"] = {}
+        self.session_data["termination_data"] = termination_info
+
+        return {
+            "success": True,
+            "message": f"Conversation terminated: {termination_info['reason']}",
+            "termination_info": termination_info,
+            "validation_status": ValidationStatus.VALID.value,
+        }
+
+    def _get_conversation_duration(self) -> Optional[float]:
+        """Get conversation duration in seconds."""
+        if "conversation_start_time" in self.session_data:
+            start_time = self.session_data["conversation_start_time"]
+            if isinstance(start_time, str):
+                start_time = datetime.fromisoformat(start_time)
+            return (datetime.now() - start_time).total_seconds()
+        return None
 
     def get_function_schemas(self) -> List[Dict[str, Any]]:
-        """
-        Get the function schemas for OpenAI function calling.
-        This maintains compatibility with your existing system.
-        """
+        """Get function schemas for OpenAI function calling."""
         return [
             {
                 "name": "verify_fullname",
-                "description": "Collect the user's full name.",
+                "description": "Collect and validate the user's full name",
                 "parameters": {
                     "type": "object",
                     "properties": {
                         "names": {
                             "type": "array",
                             "items": {
+                                "type": "object",
                                 "properties": {
                                     "first_name": {"type": "string"},
                                     "last_name": {"type": "string"},
@@ -320,13 +562,13 @@ class PatientIntakeTools(Tools):
             },
             {
                 "name": "verify_birthday",
-                "description": "Verify the user's birthday.",
+                "description": "Verify and validate the user's birthday",
                 "parameters": {
                     "type": "object",
                     "properties": {
                         "birthday": {
                             "type": "string",
-                            "description": "The user's birthday in YYYY-MM-DD format.",
+                            "description": "The user's birthday in YYYY-MM-DD format",
                         }
                     },
                     "required": ["birthday"],
@@ -334,7 +576,7 @@ class PatientIntakeTools(Tools):
             },
             {
                 "name": "list_prescriptions",
-                "description": "Collect the user's current prescriptions.",
+                "description": "Collect and validate the user's current prescriptions",
                 "parameters": {
                     "type": "object",
                     "properties": {
@@ -346,7 +588,7 @@ class PatientIntakeTools(Tools):
                                     "medication": {"type": "string"},
                                     "dosage": {"type": "string"},
                                 },
-                                "required": ["medication", "dosage"],
+                                "required": ["medication"],
                             },
                         }
                     },
@@ -355,7 +597,7 @@ class PatientIntakeTools(Tools):
             },
             {
                 "name": "list_allergies",
-                "description": "Collect the user's allergies.",
+                "description": "Collect and validate the user's allergies",
                 "parameters": {
                     "type": "object",
                     "properties": {
@@ -366,7 +608,7 @@ class PatientIntakeTools(Tools):
             },
             {
                 "name": "list_conditions",
-                "description": "Collect the user's medical conditions.",
+                "description": "Collect and validate the user's medical conditions",
                 "parameters": {
                     "type": "object",
                     "properties": {
@@ -377,7 +619,7 @@ class PatientIntakeTools(Tools):
             },
             {
                 "name": "list_visit_reasons",
-                "description": "Collect the user's reasons for visiting the doctor.",
+                "description": "Collect and validate the user's reasons for visit",
                 "parameters": {
                     "type": "object",
                     "properties": {
@@ -388,7 +630,7 @@ class PatientIntakeTools(Tools):
             },
             {
                 "name": "collect_detailed_symptoms",
-                "description": "Collect detailed information about patient symptoms.",
+                "description": "Collect detailed symptom information",
                 "parameters": {
                     "type": "object",
                     "properties": {
@@ -397,40 +639,32 @@ class PatientIntakeTools(Tools):
                             "items": {
                                 "type": "object",
                                 "properties": {
-                                    "symptom": {
-                                        "type": "string",
-                                        "description": "The symptom (e.g., chest pain, headache)",
-                                    },
+                                    "symptom": {"type": "string"},
                                     "severity": {
                                         "type": "integer",
                                         "minimum": 1,
                                         "maximum": 10,
-                                        "description": "Pain/severity scale 1-10",
                                     },
-                                    "duration": {
-                                        "type": "string",
-                                        "description": "How long (e.g., 2 hours, 3 days)",
-                                    },
+                                    "duration": {"type": "string"},
                                     "associated_symptoms": {
                                         "type": "array",
                                         "items": {"type": "string"},
-                                        "description": "Related symptoms",
                                     },
                                     "triggers": {
-                                        "type": "string",
-                                        "description": "What makes it better or worse",
+                                        "type": "array",
+                                        "items": {"type": "string"},
                                     },
                                 },
-                                "required": ["symptom", "severity", "duration"],
+                                "required": ["symptom", "severity"],
                             },
-                        },
+                        }
                     },
                     "required": ["symptoms"],
                 },
             },
             {
                 "name": "determine_routing",
-                "description": "Determine appropriate care routing based on patient information and similar cases.",
+                "description": "Determine appropriate care routing based on collected information",
                 "parameters": {
                     "type": "object",
                     "properties": {
@@ -443,14 +677,39 @@ class PatientIntakeTools(Tools):
                                 "self_care",
                                 "information",
                             ],
-                            "description": "The recommended care route",
                         },
-                        "reasoning": {
-                            "type": "string",
-                            "description": "Brief explanation for the routing decision",
-                        },
+                        "reasoning": {"type": "string"},
                     },
                     "required": ["route", "reasoning"],
                 },
             },
+            {
+                "name": "escalate_to_human",
+                "description": "Escalate the conversation to a human agent",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "reason": {"type": "string"},
+                    },
+                    "required": ["reason"],
+                },
+            },
+            {
+                "name": "terminate_conversation",
+                "description": "Terminate the conversation",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "reason": {"type": "string"},
+                    },
+                    "required": [],
+                },
+            },
         ]
+
+
+def create_patient_intake_tools(
+    session_data: Optional[Dict[str, Any]] = None,
+) -> PatientIntakeTools:
+    """Create a PatientIntakeTools instance."""
+    return PatientIntakeTools(session_data=session_data)

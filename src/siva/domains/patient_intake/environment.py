@@ -1,6 +1,7 @@
 # Copyright Sierra
-from functools import partial
-from typing import Optional, Dict, Any
+
+from typing import Optional, Dict, Any, List
+from datetime import datetime
 
 # Import your existing components (we'll keep them for now)
 import sys
@@ -13,13 +14,12 @@ from core.data_manager import DataManager
 from core.processor import UnifiedProcessor
 from openai import OpenAI
 
-
-# For now, we'll create simple placeholder classes
-# These will be replaced with proper tau2-bench imports in future phases
-class Task:
-    """Placeholder for tau2 Task class."""
-
-    pass
+from siva.agent.llm_agent import WorkflowPhase, ValidationStatus, PatientData
+from siva.data_model.message import Message, UserMessage, AssistantMessage, ToolMessage
+from siva.data_model.tasks import Task
+from siva.environment.tool import Tool, as_tool
+from siva.environment.environment import EnvironmentInfo
+from .utils import PATIENT_INTAKE_TASK_SET_PATH
 
 
 class Environment:
@@ -32,29 +32,25 @@ class Environment:
         self.user_tools = user_tools
 
 
-def load_file(path: str) -> str:
-    """Placeholder for tau2 load_file function."""
+def load_file(path: str) -> Any:
+    """Load file content, parsing JSON if it's a JSON file."""
     try:
         with open(path, "r") as f:
-            return f.read()
+            if str(path).endswith(".json"):
+                import json
+
+                return json.load(f)
+            else:
+                return f.read()
     except FileNotFoundError:
         return f"File not found: {path}"
 
-
-# Import your existing components (we'll keep them for now)
-import sys
-import os
-
-sys.path.append(os.path.join(os.path.dirname(__file__), "..", "..", "..", ".."))
-from core.vector_store import VectorStore
-from core.llm_judge import LLMJudge
-from core.data_manager import DataManager
 
 from .tools import PatientIntakeTools
 
 
 class PatientIntakeEnvironment(Environment):
-    """Patient intake environment for healthcare domain."""
+    """Patient intake environment for healthcare domain with tau2-bench workflow."""
 
     def __init__(
         self,
@@ -66,13 +62,27 @@ class PatientIntakeEnvironment(Environment):
         llm_judge: Optional[LLMJudge] = None,
         data_manager: Optional[DataManager] = None,
         openai_client: Optional[OpenAI] = None,
+        solo_mode: bool = False,
     ):
         super().__init__(domain_name, policy, tools, user_tools)
         self.vector_store = vector_store
         self.llm_judge = llm_judge
         self.data_manager = data_manager
         self.openai_client = openai_client
-        self.session_data: Dict[str, Any] = {}
+        self.solo_mode = solo_mode
+
+        # Initialize workflow state
+        self.current_phase = WorkflowPhase.GREETING
+        self.patient_data = PatientData()
+        self.session_data: Dict[str, Any] = {
+            "mode": "patient_intake",
+            "phase": self.current_phase.value,
+            "messages": [],
+            "data": {},
+            "escalation_data": {},
+            "conversation_start_time": datetime.now().isoformat(),
+            "last_activity_time": datetime.now().isoformat(),
+        }
 
         # Initialize tools with session data
         if tools and hasattr(tools, "session_data"):
@@ -87,12 +97,36 @@ class PatientIntakeEnvironment(Environment):
         """Set the initial state for a patient intake session."""
         self.session_data = {
             "mode": "patient_intake",
-            "phase": "basic_intake",
+            "phase": self.current_phase.value,
             "messages": message_history,
             "data": initialization_data or {},
             "escalation_data": {},
-            "session_id": initialization_data.get("session_id", "default"),
+            "session_id": (
+                initialization_data.get("session_id", "default")
+                if initialization_data
+                else "default"
+            ),
+            "conversation_start_time": datetime.now().isoformat(),
+            "last_activity_time": datetime.now().isoformat(),
         }
+
+        # Initialize patient data from initialization data
+        if initialization_data:
+            self.patient_data.full_name = initialization_data.get("full_name")
+            self.patient_data.birthday = initialization_data.get("birthday")
+            self.patient_data.prescriptions = initialization_data.get(
+                "prescriptions", []
+            )
+            self.patient_data.allergies = initialization_data.get("allergies", [])
+            self.patient_data.medical_conditions = initialization_data.get(
+                "medical_conditions", []
+            )
+            self.patient_data.visit_reasons = initialization_data.get(
+                "visit_reasons", []
+            )
+            self.patient_data.detailed_symptoms = initialization_data.get(
+                "detailed_symptoms", []
+            )
 
         # Initialize with system message if not present
         if not message_history:
@@ -105,35 +139,65 @@ class PatientIntakeEnvironment(Environment):
             self.tools.session_data = self.session_data
 
     def get_response(self, tool_call: Dict[str, Any]) -> Dict[str, Any]:
-        """Handle tool calls in the patient intake environment."""
-        if not self.tools:
-            return {"content": "No tools available", "success": False}
-
-        # Parse the tool call
-        function_name = tool_call.get("name")
+        """Get response for a tool call."""
+        function_name = tool_call.get("name", "")
         arguments = tool_call.get("arguments", {})
 
-        # Handle different tool calls
-        if function_name == "verify_fullname":
-            return self.tools.verify_fullname(arguments.get("names", []))
-        elif function_name == "verify_birthday":
-            return self.tools.verify_birthday(arguments.get("birthday", ""))
-        elif function_name == "list_prescriptions":
-            return self.tools.list_prescriptions(arguments.get("prescriptions", []))
-        elif function_name == "list_allergies":
-            return self.tools.list_allergies(arguments.get("allergies", []))
-        elif function_name == "list_conditions":
-            return self.tools.list_conditions(arguments.get("conditions", []))
-        elif function_name == "list_visit_reasons":
-            return self.tools.list_visit_reasons(arguments.get("visit_reasons", []))
-        elif function_name == "collect_detailed_symptoms":
-            return self.tools.collect_detailed_symptoms(arguments.get("symptoms", []))
-        elif function_name == "determine_routing":
-            return self.tools.determine_routing(
-                arguments.get("route", ""), arguments.get("reasoning", "")
-            )
+        if hasattr(self.tools, function_name):
+            method = getattr(self.tools, function_name)
+            try:
+                result = method(**arguments)
+
+                # Update patient data based on tool call
+                self._update_patient_data(function_name, arguments, result)
+
+                return result
+            except Exception as e:
+                return {
+                    "content": f"Error calling {function_name}: {str(e)}",
+                    "success": False,
+                }
         else:
             return {"content": f"Unknown tool call: {function_name}", "success": False}
+
+    def _update_patient_data(
+        self, function_name: str, arguments: Dict[str, Any], result: Dict[str, Any]
+    ):
+        """Update patient data based on tool call results."""
+        if result.get("success", False):
+            if function_name == "verify_fullname":
+                self.patient_data.full_name = arguments.get("names", [{}])[0].get(
+                    "full_name", ""
+                )
+                self.patient_data.name_validation = ValidationStatus.VALID
+            elif function_name == "verify_birthday":
+                self.patient_data.birthday = arguments.get("birthday", "")
+                self.patient_data.birthday_validation = ValidationStatus.VALID
+            elif function_name == "list_prescriptions":
+                self.patient_data.prescriptions = arguments.get("prescriptions", [])
+                self.patient_data.prescriptions_validation = ValidationStatus.VALID
+            elif function_name == "list_allergies":
+                self.patient_data.allergies = arguments.get("allergies", [])
+                self.patient_data.allergies_validation = ValidationStatus.VALID
+            elif function_name == "list_conditions":
+                self.patient_data.medical_conditions = arguments.get("conditions", [])
+                self.patient_data.conditions_validation = ValidationStatus.VALID
+            elif function_name == "list_visit_reasons":
+                self.patient_data.visit_reasons = arguments.get("visit_reasons", [])
+                self.patient_data.visit_reasons_validation = ValidationStatus.VALID
+            elif function_name == "collect_detailed_symptoms":
+                self.patient_data.detailed_symptoms = arguments.get("symptoms", [])
+                self.patient_data.symptoms_validation = ValidationStatus.VALID
+            elif function_name == "determine_routing":
+                self.patient_data.routing_decision = {
+                    "route": arguments.get("route", ""),
+                    "reasoning": arguments.get("reasoning", ""),
+                }
+                self.patient_data.routing_validation = ValidationStatus.VALID
+
+        # Update session data
+        self.session_data["data"] = self.patient_data.dict()
+        self.session_data["last_activity_time"] = datetime.now().isoformat()
 
     def process_message(self, message: str) -> tuple[str, bool, Dict[str, Any]]:
         """
@@ -189,6 +253,107 @@ class PatientIntakeEnvironment(Environment):
             return self.tools.get_function_schemas()
         return []
 
+    def sync_tools(self):
+        """Sync tools with current state."""
+        if self.tools and hasattr(self.tools, "session_data"):
+            self.tools.session_data = self.session_data
+
+    def get_workflow_status(self) -> Dict[str, Any]:
+        """Get current workflow status."""
+        return {
+            "current_phase": self.current_phase.value,
+            "patient_data": self.patient_data.dict(),
+            "session_data": self.session_data,
+            "validation_status": {
+                "name": self.patient_data.name_validation.value,
+                "birthday": self.patient_data.birthday_validation.value,
+                "prescriptions": self.patient_data.prescriptions_validation.value,
+                "allergies": self.patient_data.allergies_validation.value,
+                "conditions": self.patient_data.conditions_validation.value,
+                "visit_reasons": self.patient_data.visit_reasons_validation.value,
+                "symptoms": self.patient_data.symptoms_validation.value,
+                "routing": self.patient_data.routing_validation.value,
+            },
+        }
+
+    def advance_phase(self):
+        """Advance to the next workflow phase."""
+        if self.current_phase == WorkflowPhase.GREETING:
+            self.current_phase = WorkflowPhase.BASIC_INTAKE
+        elif self.current_phase == WorkflowPhase.BASIC_INTAKE:
+            if self._is_basic_intake_complete():
+                self.current_phase = WorkflowPhase.DETAILED_SYMPTOMS
+        elif self.current_phase == WorkflowPhase.DETAILED_SYMPTOMS:
+            if self._is_detailed_symptoms_complete():
+                self.current_phase = WorkflowPhase.ROUTING
+        elif self.current_phase == WorkflowPhase.ROUTING:
+            if self._is_routing_complete():
+                self.current_phase = WorkflowPhase.TERMINATION
+
+        # Update session data
+        self.session_data["phase"] = self.current_phase.value
+
+    def _is_basic_intake_complete(self) -> bool:
+        """Check if basic intake phase is complete."""
+        required_fields = [
+            self.patient_data.name_validation,
+            self.patient_data.birthday_validation,
+            self.patient_data.prescriptions_validation,
+            self.patient_data.allergies_validation,
+            self.patient_data.conditions_validation,
+            self.patient_data.visit_reasons_validation,
+        ]
+        return all(status == ValidationStatus.VALID for status in required_fields)
+
+    def _is_detailed_symptoms_complete(self) -> bool:
+        """Check if detailed symptoms phase is complete."""
+        return self.patient_data.symptoms_validation == ValidationStatus.VALID
+
+    def _is_routing_complete(self) -> bool:
+        """Check if routing phase is complete."""
+        return self.patient_data.routing_validation == ValidationStatus.VALID
+
+    def get_info(self, include_tool_info: bool = False) -> EnvironmentInfo:
+        """Get environment information."""
+        return EnvironmentInfo(
+            domain_name=self.domain_name,
+            policy=self.policy,
+            tools=(
+                self.tools.get_function_schemas()
+                if hasattr(self.tools, "get_function_schemas")
+                else []
+            ),
+            user_tools=(
+                self.user_tools.get_function_schemas()
+                if self.user_tools and hasattr(self.user_tools, "get_function_schemas")
+                else []
+            ),
+        )
+
+    def get_tools(self) -> list[Tool]:
+        """Get environment tools."""
+        return self.tools.get_tools() if hasattr(self.tools, "get_tools") else []
+
+    def get_user_tools(self) -> list[Tool]:
+        """Get user tools."""
+        return (
+            self.user_tools.get_tools()
+            if self.user_tools and hasattr(self.user_tools, "get_tools")
+            else []
+        )
+
+    def get_policy(self) -> str:
+        """Get domain policy."""
+        return self.policy
+
+    def get_db_hash(self) -> str:
+        """Get database hash for evaluation."""
+        return "patient_intake_db_hash"
+
+    def get_user_db_hash(self) -> str:
+        """Get user database hash for evaluation."""
+        return "patient_intake_user_db_hash"
+
 
 def get_environment(
     db: Optional[Any] = None,
@@ -200,10 +365,6 @@ def get_environment(
     openai_client: Optional[OpenAI] = None,
 ) -> PatientIntakeEnvironment:
     """Get the patient intake environment."""
-    # Create tools
-    tools = PatientIntakeTools()
-    user_tools = None
-
     # Load policy
     policy_path = os.path.join(
         os.path.dirname(__file__),
@@ -215,13 +376,15 @@ def get_environment(
         "siva",
         "domains",
         "patient_intake",
-        "main_policy.md",
+        "main_policy_solo.md" if solo_mode else "main_policy.md",
     )
-    try:
-        with open(policy_path, "r") as f:
-            policy = f.read()
-    except FileNotFoundError:
-        policy = "Patient intake policy placeholder"
+    policy = load_file(policy_path)
+
+    # Create tools
+    tools = PatientIntakeTools()
+
+    # Create user tools (placeholder for now)
+    user_tools = None
 
     return PatientIntakeEnvironment(
         domain_name="patient_intake",
@@ -232,11 +395,50 @@ def get_environment(
         llm_judge=llm_judge,
         data_manager=data_manager,
         openai_client=openai_client,
+        solo_mode=solo_mode,
     )
 
 
-get_environment_manual_policy = partial(get_environment, policy_type="manual")
-get_environment_workflow_policy = partial(get_environment, policy_type="workflow")
+def get_environment_manual_policy(
+    db: Optional[Any] = None,
+    user_db: Optional[Any] = None,
+    solo_mode: bool = False,
+    vector_store: Optional[VectorStore] = None,
+    llm_judge: Optional[LLMJudge] = None,
+    data_manager: Optional[DataManager] = None,
+    openai_client: Optional[OpenAI] = None,
+) -> PatientIntakeEnvironment:
+    """Get the patient intake environment with manual policy."""
+    return get_environment(
+        db=db,
+        user_db=user_db,
+        solo_mode=solo_mode,
+        vector_store=vector_store,
+        llm_judge=llm_judge,
+        data_manager=data_manager,
+        openai_client=openai_client,
+    )
+
+
+def get_environment_workflow_policy(
+    db: Optional[Any] = None,
+    user_db: Optional[Any] = None,
+    solo_mode: bool = False,
+    vector_store: Optional[VectorStore] = None,
+    llm_judge: Optional[LLMJudge] = None,
+    data_manager: Optional[DataManager] = None,
+    openai_client: Optional[OpenAI] = None,
+) -> PatientIntakeEnvironment:
+    """Get the patient intake environment with workflow policy."""
+    return get_environment(
+        db=db,
+        user_db=user_db,
+        solo_mode=solo_mode,
+        vector_store=vector_store,
+        llm_judge=llm_judge,
+        data_manager=data_manager,
+        openai_client=openai_client,
+    )
 
 
 def load_tasks(path: str) -> list[Task]:
@@ -244,19 +446,19 @@ def load_tasks(path: str) -> list[Task]:
     tasks = load_file(path)
     if isinstance(tasks, dict) and "tasks" in tasks:
         tasks = tasks["tasks"]
-    return [Task.model_validate(task) for task in tasks]
+    return [Task(**task) for task in tasks]
 
 
 def get_tasks_full() -> list[Task]:
-    return load_tasks(TELECOM_TASK_SET_PATH_FULL)
+    return load_tasks(PATIENT_INTAKE_TASK_SET_PATH)
 
 
 def get_tasks_small() -> list[Task]:
-    return load_tasks(TELECOM_TASK_SET_PATH_SMALL)
+    return load_tasks(PATIENT_INTAKE_TASK_SET_PATH)
 
 
 def get_tasks() -> list[Task]:
-    return load_tasks(TELECOM_TASK_SET_PATH)
+    return load_tasks(PATIENT_INTAKE_TASK_SET_PATH)
 
 
 if __name__ == "__main__":
