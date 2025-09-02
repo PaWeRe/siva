@@ -83,7 +83,51 @@ uv run python -m siva.cli view
 
 **Note**: SIVA uses the tau2-bench approach with LLM-based user simulators that generate responses dynamically based on task instructions, eliminating the need for hardcoded response logic. 
 
+## 🚀 **Next.js Dashboard & Modern Backend**
 
+### **Overview**
+SIVA now includes a modern Next.js dashboard that provides a web interface for running simulations, viewing results, and monitoring the learning system. This is built on top of the tau2-bench framework.
+
+### **Running the Dashboard**
+
+**1. Start the tau2-bench Backend:**
+```bash
+# Start the new tau2-bench based backend
+uv run python main_tau2.py
+```
+The backend will be available at `http://localhost:8000`
+
+**2. Start the Next.js Dashboard:**
+```bash
+cd frontend/nextjs
+npm run dev
+```
+The dashboard will be available at `http://localhost:3000`
+
+**3. Access the Dashboard:**
+- Open `http://localhost:3000` in your browser
+- Use the dashboard to run simulations, view results, and monitor performance
+
+### **Dashboard Features**
+- **Overview**: Performance metrics and recent simulations
+- **Simulations**: Run new simulations and view results
+- **Learning**: Monitor learning system status and improvements
+- **Real-time Updates**: Background simulation processing with status updates
+
+### **API Endpoints**
+The new backend provides RESTful APIs:
+- `GET /api/health` - System health check
+- `GET /api/domains` - Available domains and agents
+- `POST /api/simulations/run` - Start new simulations
+- `GET /api/simulations/status/{id}` - Check simulation progress
+- `GET /api/learning/summary` - Learning system status
+
+### **Migration Note**
+⚠️ **Temporary Setup**: During migration, SIVA runs with two backends:
+- **Legacy Backend** (`main.py`) - Original voice agent functionality
+- **Modern Backend** (`main_tau2.py`) - New tau2-bench based system
+
+The goal is to eventually consolidate to only the tau2-bench backend once migration is complete.
 
 ## 🎯 Use Cases & Applications
 
@@ -136,14 +180,19 @@ Real-time dashboard tracking: total conversations, vector store size, system acc
 ```
 siva/
 ├── pyproject.toml             # Package configuration and dependencies
-├── main.py                    # FastAPI server entry point
+├── main.py                    # Legacy FastAPI server entry point
+├── main_tau2.py               # New tau2-bench based backend server
 ├── run_voice_app.py           # Application launcher
 ├── serve_client.py            # Voice client server
 ├── config/                    # Configuration management
 │   └── settings.py            # Pydantic settings with env validation
-├── frontend/                  # Static web assets
-│   ├── voice_client.html      # Voice interface
-│   └── dashboard.html         # Performance monitoring
+├── frontend/                  # Web interfaces
+│   ├── voice_client.html      # Legacy voice interface
+│   ├── dashboard.html         # Legacy performance monitoring
+│   └── nextjs/               # Modern Next.js dashboard
+│       ├── app/               # Next.js app router
+│       ├── package.json       # Node.js dependencies
+│       └── README.md          # Dashboard documentation
 ├── src/siva/                  # Main application code
 │   ├── agent/                 # Agent implementations
 │   ├── api_service/           # API services and endpoints
