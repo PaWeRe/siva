@@ -1,237 +1,93 @@
+#!/usr/bin/env python3
+"""
+SIVA CLI for running simulations and managing the system.
+"""
+
 import argparse
+import sys
+from pathlib import Path
 
-from siva.config import (
-    DEFAULT_AGENT_IMPLEMENTATION,
-    DEFAULT_LLM_AGENT,
-    DEFAULT_LLM_TEMPERATURE_AGENT,
-    DEFAULT_LLM_TEMPERATURE_USER,
-    DEFAULT_LLM_USER,
-    DEFAULT_LOG_LEVEL,
-    DEFAULT_MAX_CONCURRENCY,
-    DEFAULT_MAX_ERRORS,
-    DEFAULT_MAX_STEPS,
-    DEFAULT_NUM_TRIALS,
-    DEFAULT_SEED,
-    DEFAULT_USER_IMPLEMENTATION,
-)
+from siva.registry import registry
+from siva.run import run_domain
 from siva.data_model.simulation import RunConfig
-from siva.run import get_options, run_domain
-
-
-def add_run_args(parser):
-    """Add run arguments to a parser."""
-    domains = get_options().domains
-    parser.add_argument(
-        "--domain",
-        "-d",
-        type=str,
-        choices=domains,
-        help="The domain to run the simulation on",
-    )
-    parser.add_argument(
-        "--num-trials",
-        type=int,
-        default=DEFAULT_NUM_TRIALS,
-        help="The number of times each task is run. Default is 1.",
-    )
-    parser.add_argument(
-        "--agent",
-        type=str,
-        default=DEFAULT_AGENT_IMPLEMENTATION,
-        choices=get_options().agents,
-        help=f"The agent implementation to use. Default is {DEFAULT_AGENT_IMPLEMENTATION}.",
-    )
-    parser.add_argument(
-        "--agent-llm",
-        type=str,
-        default=DEFAULT_LLM_AGENT,
-        help=f"The LLM to use for the agent. Default is {DEFAULT_LLM_AGENT}.",
-    )
-    parser.add_argument(
-        "--agent-llm-args",
-        type=dict,
-        default={"temperature": DEFAULT_LLM_TEMPERATURE_AGENT},
-        help=f"The arguments to pass to the LLM for the agent. Default is temperature={DEFAULT_LLM_TEMPERATURE_AGENT}.",
-    )
-    parser.add_argument(
-        "--user",
-        type=str,
-        choices=get_options().users,
-        default=DEFAULT_USER_IMPLEMENTATION,
-        help=f"The user implementation to use. Default is {DEFAULT_USER_IMPLEMENTATION}.",
-    )
-    parser.add_argument(
-        "--user-llm",
-        type=str,
-        default=DEFAULT_LLM_USER,
-        help=f"The LLM to use for the user. Default is {DEFAULT_LLM_USER}.",
-    )
-    parser.add_argument(
-        "--user-llm-args",
-        type=dict,
-        default={"temperature": DEFAULT_LLM_TEMPERATURE_USER},
-        help=f"The arguments to pass to the LLM for the user. Default is temperature={DEFAULT_LLM_TEMPERATURE_USER}.",
-    )
-    parser.add_argument(
-        "--task-set-name",
-        type=str,
-        default=None,
-        choices=get_options().task_sets,
-        help="The task set to run the simulation on. If not provided, will load default task set for the domain.",
-    )
-    parser.add_argument(
-        "--task-ids",
-        type=str,
-        nargs="+",
-        help="(Optional) run only the tasks with the given IDs. If not provided, will run all tasks.",
-    )
-    parser.add_argument(
-        "--num-tasks",
-        type=int,
-        default=None,
-        help="The number of tasks to run.",
-    )
-    parser.add_argument(
-        "--max-steps",
-        type=int,
-        default=DEFAULT_MAX_STEPS,
-        help=f"The maximum number of steps to run the simulation. Default is {DEFAULT_MAX_STEPS}.",
-    )
-    parser.add_argument(
-        "--max-errors",
-        type=int,
-        default=DEFAULT_MAX_ERRORS,
-        help=f"The maximum number of tool errors allowed in a row in the simulation. Default is {DEFAULT_MAX_ERRORS}.",
-    )
-    parser.add_argument(
-        "--save-to",
-        type=str,
-        required=False,
-        help="The path to save the simulation results. Will be saved to data/simulations/<save_to>.json. If not provided, will save to <domain>_<agent>_<user>_<llm_agent>_<llm_user>_<timestamp>.json. If the file already exists, it will try to resume the run.",
-    )
-    parser.add_argument(
-        "--max-concurrency",
-        type=int,
-        default=DEFAULT_MAX_CONCURRENCY,
-        help=f"The maximum number of concurrent simulations to run. Default is {DEFAULT_MAX_CONCURRENCY}.",
-    )
-    parser.add_argument(
-        "--seed",
-        type=int,
-        default=DEFAULT_SEED,
-        help=f"The seed to use for the simulation. Default is {DEFAULT_SEED}.",
-    )
-    parser.add_argument(
-        "--log-level",
-        type=str,
-        default=DEFAULT_LOG_LEVEL,
-        help=f"The log level to use for the simulation. Default is {DEFAULT_LOG_LEVEL}.",
-    )
+from siva.learning.integration import LearningIntegration
 
 
 def main():
-    parser = argparse.ArgumentParser(description="siva command line interface")
+    """Main CLI entry point."""
+    parser = argparse.ArgumentParser(description="SIVA CLI")
     subparsers = parser.add_subparsers(dest="command", help="Available commands")
 
     # Run command
-    run_parser = subparsers.add_parser("run", help="Run a benchmark")
-    add_run_args(run_parser)
-    run_parser.set_defaults(
-        func=lambda args: run_domain(
-            RunConfig(
-                domain=args.domain,
-                task_set_name=args.task_set_name,
-                task_ids=args.task_ids,
-                num_tasks=args.num_tasks,
-                agent=args.agent,
-                llm_agent=args.agent_llm,
-                llm_args_agent=args.agent_llm_args,
-                user=args.user,
-                llm_user=args.user_llm,
-                llm_args_user=args.user_llm_args,
-                num_trials=args.num_trials,
-                max_steps=args.max_steps,
-                max_errors=args.max_errors,
-                save_to=args.save_to,
-                max_concurrency=args.max_concurrency,
-                seed=args.seed,
-                log_level=args.log_level,
-            )
-        )
+    run_parser = subparsers.add_parser("run", help="Run simulations")
+    run_parser.add_argument("--domain", required=True, help="Domain to run")
+    run_parser.add_argument("--agent", required=True, help="Agent to use")
+    run_parser.add_argument("--user", required=True, help="User simulator to use")
+    run_parser.add_argument(
+        "--num-tasks", type=int, default=1, help="Number of tasks to run"
     )
+    run_parser.add_argument(
+        "--max-steps", type=int, default=50, help="Maximum steps per simulation"
+    )
+    run_parser.add_argument(
+        "--max-errors", type=int, default=10, help="Maximum errors per simulation"
+    )
+    run_parser.add_argument("--seed", type=int, help="Random seed")
 
     # View command
     view_parser = subparsers.add_parser("view", help="View simulation results")
-    view_parser.add_argument(
-        "--file",
-        type=str,
-        help="Path to the simulation results file to view",
-    )
-    view_parser.add_argument(
-        "--only-show-failed",
-        action="store_true",
-        help="Only show failed tasks.",
-    )
-    view_parser.add_argument(
-        "--only-show-all-failed",
-        action="store_true",
-        help="Only show tasks that failed in all trials.",
-    )
-    view_parser.set_defaults(func=lambda args: run_view_simulations(args))
 
-    # Domain command
-    domain_parser = subparsers.add_parser("domain", help="Show domain documentation")
-    domain_parser.add_argument(
-        "domain",
-        type=str,
-        help="Name of the domain to show documentation for (e.g., 'airline', 'mock')",
+    # Learning command
+    learning_parser = subparsers.add_parser(
+        "learning", help="View learning system status"
     )
-    domain_parser.set_defaults(func=lambda args: run_show_domain(args))
-
-    # Start command
-    start_parser = subparsers.add_parser("start", help="Start all servers")
-    start_parser.set_defaults(func=lambda args: run_start_servers())
-
-    # Check data command
-    check_data_parser = subparsers.add_parser(
-        "check-data", help="Check if data directory is properly configured"
-    )
-    check_data_parser.set_defaults(func=lambda args: run_check_data())
+    learning_parser.add_argument("--export", help="Export learning data to file")
 
     args = parser.parse_args()
-    if not hasattr(args, "func"):
+
+    if args.command == "run":
+        # Run simulations
+        config = RunConfig(
+            domain=args.domain,
+            agent=args.agent,
+            user=args.user,
+            num_tasks=args.num_tasks,
+            max_steps=args.max_steps,
+            max_errors=args.max_errors,
+            seed=args.seed,
+            agent_llm="gpt-4.1",
+            user_llm="gpt-4.1",
+            num_trials=1,
+        )
+        run_domain(config)
+    elif args.command == "view":
+        # View simulation results
+        from siva.scripts.view_simulations import main as view_main
+
+        view_main()
+    elif args.command == "learning":
+        # View learning system status
+        learning_integration = LearningIntegration()
+        summary = learning_integration.get_learning_summary()
+
+        print("🧠 SIVA Learning System Status")
+        print("=" * 50)
+        print(f"Total Simulations: {summary['total_simulations']}")
+        print(f"Overall Success Rate: {summary['overall_success_rate']:.2%}")
+        print(f"Recent Success Rate: {summary['recent_success_rate']:.2%}")
+        print(f"Learning Records: {summary['total_learning_records']}")
+
+        if summary["improvement_suggestions"]:
+            print("\n📈 Improvement Suggestions:")
+            for suggestion in summary["improvement_suggestions"]:
+                print(f"  • {suggestion}")
+
+        if args.export:
+            export_path = learning_integration.export_learning_data(args.export)
+            print(f"\n📊 Learning data exported to: {export_path}")
+    else:
         parser.print_help()
-        return
-
-    args.func(args)
-
-
-def run_view_simulations(args):
-    from siva.scripts.view_simulations import main as view_main
-
-    view_main(
-        sim_file=args.file,
-        only_show_failed=args.only_show_failed,
-        only_show_all_failed=args.only_show_all_failed,
-    )
-
-
-def run_show_domain(args):
-    from siva.scripts.show_domain_doc import main as domain_main
-
-    domain_main(args.domain)
-
-
-def run_start_servers():
-    from siva.scripts.start_servers import main as start_main
-
-    start_main()
-
-
-def run_check_data():
-    from siva.scripts.check_data import main as check_data_main
-
-    check_data_main()
+        sys.exit(1)
 
 
 if __name__ == "__main__":

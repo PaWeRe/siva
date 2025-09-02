@@ -23,6 +23,7 @@ from siva.user.base import BaseUser, is_valid_user_history_message
 from siva.user.user_simulator import DummyUser, UserSimulator, UserState
 from siva.utils.llm_utils import get_cost
 from siva.utils.utils import format_time, get_now
+from siva.learning.integration import LearningIntegration
 
 
 class Role(str, Enum):
@@ -73,6 +74,9 @@ class Orchestrator:
         self.from_role: Optional[Role] = None
         self.to_role: Optional[Role] = None
         self.message: Optional[Message] = None
+
+        # Initialize learning integration
+        self.learning_integration = LearningIntegration()
 
     def initialize(self):
         """
@@ -275,6 +279,18 @@ class Orchestrator:
             messages=messages,
             seed=self.seed,
         )
+
+        # Process simulation result for learning
+        try:
+            learning_record = self.learning_integration.process_simulation_result(
+                simulation_run
+            )
+            logger.info(
+                f"Learning integration processed simulation {simulation_run.id}"
+            )
+        except Exception as e:
+            logger.warning(f"Learning integration failed: {e}")
+
         return simulation_run
 
     def step(self):
