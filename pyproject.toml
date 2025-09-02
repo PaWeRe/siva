@@ -31,6 +31,7 @@ dependencies = [
     "deepdiff>=8.4.2",
     "docstring-parser>=0.17.0",
     "litellm>=1.75.9",
+    "tenacity>=9.0.0",
 ]
 
 [project.optional-dependencies]

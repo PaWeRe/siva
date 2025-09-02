@@ -83,7 +83,7 @@ class PatientIntakeTools:
         Collect and validate the user's full name.
 
         Args:
-            names: List of name objects with first_name and last_name
+            names: List of name objects with first_name and last_name, or full_name
 
         Returns:
             Success status and validation result
@@ -96,8 +96,30 @@ class PatientIntakeTools:
             }
 
         name = names[0]  # Take the first name
-        first_name = name.get("first_name", "").strip()
-        last_name = name.get("last_name", "").strip()
+
+        # Handle both formats: first_name/last_name or full_name
+        if "full_name" in name:
+            full_name = name.get("full_name", "").strip()
+            if not full_name:
+                return {
+                    "success": False,
+                    "error": "Full name is required",
+                    "validation_status": ValidationStatus.REQUIRES_CLARIFICATION.value,
+                }
+            # Split full name into first and last name for validation
+            name_parts = full_name.split()
+            if len(name_parts) < 2:
+                return {
+                    "success": False,
+                    "error": "Both first and last name are required",
+                    "validation_status": ValidationStatus.REQUIRES_CLARIFICATION.value,
+                }
+            first_name = name_parts[0]
+            last_name = " ".join(name_parts[1:])
+        else:
+            first_name = name.get("first_name", "").strip()
+            last_name = name.get("last_name", "").strip()
+            full_name = f"{first_name} {last_name}"
 
         # Validation
         if not first_name or not last_name:
@@ -113,8 +135,6 @@ class PatientIntakeTools:
                 "error": "Names must be at least 2 characters long",
                 "validation_status": ValidationStatus.INVALID.value,
             }
-
-        full_name = f"{first_name} {last_name}"
 
         # Store in session data
         if "data" not in self.session_data:
@@ -178,12 +198,14 @@ class PatientIntakeTools:
                 "validation_status": ValidationStatus.INVALID.value,
             }
 
-    def list_prescriptions(self, prescriptions: List[Dict[str, str]]) -> Dict[str, Any]:
+    def list_prescriptions(
+        self, prescriptions: List[Union[str, Dict[str, str]]]
+    ) -> Dict[str, Any]:
         """
         Collect and validate the user's current prescriptions.
 
         Args:
-            prescriptions: List of prescription objects with medication and dosage
+            prescriptions: List of prescription strings or prescription objects with medication and dosage
 
         Returns:
             Success status and stored prescriptions
@@ -204,8 +226,16 @@ class PatientIntakeTools:
         # Validate each prescription
         validated_prescriptions = []
         for prescription in prescriptions:
-            medication = prescription.get("medication", "").strip()
-            dosage = prescription.get("dosage", "").strip()
+            if isinstance(prescription, str):
+                # Handle string format: "Lisinopril 10mg daily"
+                medication = prescription.strip()
+                dosage = ""
+            elif isinstance(prescription, dict):
+                # Handle dictionary format: {"medication": "...", "dosage": "..."}
+                medication = prescription.get("medication", "").strip()
+                dosage = prescription.get("dosage", "").strip()
+            else:
+                continue  # Skip invalid formats
 
             if not medication:
                 return {
@@ -431,7 +461,10 @@ class PatientIntakeTools:
         """
         valid_routes = ["emergency", "urgent", "routine", "self_care", "information"]
 
-        if route not in valid_routes:
+        # Make route case-insensitive
+        route_lower = route.lower().strip()
+
+        if route_lower not in valid_routes:
             return {
                 "success": False,
                 "error": f"Invalid route. Must be one of: {', '.join(valid_routes)}",
@@ -446,7 +479,7 @@ class PatientIntakeTools:
             }
 
         routing_decision = {
-            "route": route,
+            "route": route_lower,
             "reasoning": reasoning.strip(),
             "timestamp": datetime.now().isoformat(),
         }
@@ -458,7 +491,7 @@ class PatientIntakeTools:
 
         return {
             "success": True,
-            "message": f"Routing decision made: {route}",
+            "message": f"Routing decision made: {route_lower}",
             "routing_decision": routing_decision,
             "validation_status": ValidationStatus.VALID.value,
         }
@@ -552,8 +585,12 @@ class PatientIntakeTools:
                                 "properties": {
                                     "first_name": {"type": "string"},
                                     "last_name": {"type": "string"},
+                                    "full_name": {"type": "string"},
                                 },
-                                "required": ["first_name", "last_name"],
+                                "anyOf": [
+                                    {"required": ["first_name", "last_name"]},
+                                    {"required": ["full_name"]},
+                                ],
                             },
                         }
                     },
@@ -706,6 +743,26 @@ class PatientIntakeTools:
                 },
             },
         ]
+
+    def get_tools(self) -> list[Tool]:
+        """Get the tools as Tool objects."""
+        from siva.environment.tool import as_tool
+
+        tools = []
+
+        # Add all the domain-specific tools
+        tools.append(as_tool(self.verify_fullname))
+        tools.append(as_tool(self.verify_birthday))
+        tools.append(as_tool(self.list_prescriptions))
+        tools.append(as_tool(self.list_allergies))
+        tools.append(as_tool(self.list_conditions))
+        tools.append(as_tool(self.list_visit_reasons))
+        tools.append(as_tool(self.collect_detailed_symptoms))
+        tools.append(as_tool(self.determine_routing))
+        tools.append(as_tool(self.escalate_to_human))
+        tools.append(as_tool(self.terminate_conversation))
+
+        return tools
 
 
 def create_patient_intake_tools(

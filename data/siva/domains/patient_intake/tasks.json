@@ -101,10 +101,11 @@
           "requestor": "assistant",
           "name": "determine_routing",
           "arguments": {
-            "route": "Routine"
+            "route": "Routine",
+            "reasoning": "Patient presents for routine checkup"
           },
           "info": null,
-          "compare_args": null
+          "compare_args": ["route"]
         }
       ],
       "env_assertions": [],
@@ -181,10 +182,11 @@
           "requestor": "assistant",
           "name": "determine_routing",
           "arguments": {
-            "route": "Routine"
+            "route": "Routine",
+            "reasoning": "Patient presents for follow-up appointment"
           },
           "info": null,
-          "compare_args": null
+          "compare_args": ["route"]
         }
       ],
       "env_assertions": [],
@@ -294,10 +296,11 @@
           "requestor": "assistant",
           "name": "determine_routing",
           "arguments": {
-            "route": "Self-Care"
+            "route": "Self-Care",
+            "reasoning": "Patient presents with cold symptoms suitable for self-care"
           },
           "info": null,
-          "compare_args": null
+          "compare_args": ["route"]
         }
       ],
       "env_assertions": [],
@@ -433,10 +436,11 @@
           "requestor": "assistant",
           "name": "determine_routing",
           "arguments": {
-            "route": "Urgent"
+            "route": "Urgent",
+            "reasoning": "Patient presents with chest pain requiring urgent care"
           },
           "info": null,
-          "compare_args": null
+          "compare_args": ["route"]
         }
       ],
       "env_assertions": [],
@@ -572,10 +576,11 @@
           "requestor": "assistant",
           "name": "determine_routing",
           "arguments": {
-            "route": "Routine"
+            "route": "Routine",
+            "reasoning": "Patient presents for follow-up appointment"
           },
           "info": null,
-          "compare_args": null
+          "compare_args": ["route"]
         }
       ],
       "env_assertions": [],
@@ -716,10 +721,11 @@
           "requestor": "assistant",
           "name": "determine_routing",
           "arguments": {
-            "route": "Urgent"
+            "route": "Urgent",
+            "reasoning": "Patient presents with multiple severe symptoms requiring urgent care"
           },
           "info": null,
-          "compare_args": null
+          "compare_args": ["route"]
         }
       ],
       "env_assertions": [],
@@ -834,10 +840,11 @@
           "requestor": "assistant",
           "name": "determine_routing",
           "arguments": {
-            "route": "Emergency"
+            "route": "Emergency",
+            "reasoning": "Patient presents with severe chest pain and difficulty breathing requiring emergency care"
           },
           "info": null,
-          "compare_args": null
+          "compare_args": ["route"]
         }
       ],
       "env_assertions": [],

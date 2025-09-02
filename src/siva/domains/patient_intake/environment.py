@@ -2,6 +2,7 @@
 
 from typing import Optional, Dict, Any, List
 from datetime import datetime
+import json
 
 # Import your existing components (we'll keep them for now)
 import sys
@@ -138,11 +139,23 @@ class PatientIntakeEnvironment(Environment):
         if self.tools and hasattr(self.tools, "session_data"):
             self.tools.session_data = self.session_data
 
-    def get_response(self, tool_call: Dict[str, Any]) -> Dict[str, Any]:
+    def get_response(self, tool_call) -> "ToolMessage":
         """Get response for a tool call."""
-        function_name = tool_call.get("name", "")
-        arguments = tool_call.get("arguments", {})
+        from siva.data_model.message import ToolMessage
 
+        # Handle both ToolCall objects and dictionaries
+        if hasattr(tool_call, "name"):
+            function_name = tool_call.name
+            arguments = tool_call.arguments
+            tool_call_id = tool_call.id
+            requestor = tool_call.requestor
+        else:
+            function_name = tool_call.get("name", "")
+            arguments = tool_call.get("arguments", {})
+            tool_call_id = tool_call.get("id", "")
+            requestor = tool_call.get("requestor", "assistant")
+
+        # First try to find the tool in the domain tools
         if hasattr(self.tools, function_name):
             method = getattr(self.tools, function_name)
             try:
@@ -151,14 +164,107 @@ class PatientIntakeEnvironment(Environment):
                 # Update patient data based on tool call
                 self._update_patient_data(function_name, arguments, result)
 
-                return result
+                # Convert result to string content
+                if isinstance(result, dict):
+                    content = json.dumps(result, indent=2)
+                else:
+                    content = str(result)
+
+                return ToolMessage(
+                    id=tool_call_id,
+                    role="tool",
+                    content=content,
+                    requestor=requestor,
+                    error=False,
+                )
             except Exception as e:
-                return {
-                    "content": f"Error calling {function_name}: {str(e)}",
-                    "success": False,
-                }
+                return ToolMessage(
+                    id=tool_call_id,
+                    role="tool",
+                    content=f"Error calling {function_name}: {str(e)}",
+                    requestor=requestor,
+                    error=True,
+                )
+
+        # If not found in domain tools, handle workflow tools
+        elif function_name == "escalate_conversation":
+            reason = arguments.get("reason", "Unknown reason")
+            return ToolMessage(
+                id=tool_call_id,
+                role="tool",
+                content=json.dumps(
+                    {
+                        "success": True,
+                        "escalation_reason": reason,
+                        "message": "Conversation escalated",
+                    },
+                    indent=2,
+                ),
+                requestor=requestor,
+                error=False,
+            )
+        elif function_name == "terminate_conversation":
+            reason = arguments.get("reason", "Unknown reason")
+            return ToolMessage(
+                id=tool_call_id,
+                role="tool",
+                content=json.dumps(
+                    {
+                        "success": True,
+                        "termination_reason": reason,
+                        "message": "Conversation terminated",
+                    },
+                    indent=2,
+                ),
+                requestor=requestor,
+                error=False,
+            )
+        elif function_name == "complete_phase":
+            phase = arguments.get("phase", "unknown")
+            return ToolMessage(
+                id=tool_call_id,
+                role="tool",
+                content=json.dumps(
+                    {
+                        "success": True,
+                        "phase": phase,
+                        "message": f"Phase {phase} completed",
+                    },
+                    indent=2,
+                ),
+                requestor=requestor,
+                error=False,
+            )
+        elif function_name == "validate_birthday":
+            birthday = arguments.get("birthday", "")
+            return ToolMessage(
+                id=tool_call_id,
+                role="tool",
+                content=json.dumps(
+                    {"valid": True, "message": "Birthday validated"}, indent=2
+                ),
+                requestor=requestor,
+                error=False,
+            )
+        elif function_name == "validate_name":
+            full_name = arguments.get("full_name", "")
+            return ToolMessage(
+                id=tool_call_id,
+                role="tool",
+                content=json.dumps(
+                    {"valid": True, "message": "Name validated"}, indent=2
+                ),
+                requestor=requestor,
+                error=False,
+            )
         else:
-            return {"content": f"Unknown tool call: {function_name}", "success": False}
+            return ToolMessage(
+                id=tool_call_id,
+                role="tool",
+                content=f"Unknown tool call: {function_name}",
+                requestor=requestor,
+                error=True,
+            )
 
     def _update_patient_data(
         self, function_name: str, arguments: Dict[str, Any], result: Dict[str, Any]

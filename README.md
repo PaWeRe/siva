@@ -25,7 +25,61 @@ Self-improving voice agent framework that learns from expert feedback by extract
    ```bash
    uv run python run_voice_app.py
    ```
-   Opens the voice client at [http://localhost:3000/voice_client.html](http://localhost:3000/voice_client.html) and dashboard at [http://localhost:8000/dashboard](http://localhost:8000/dashboard) 
+   Opens the voice client at [http://localhost:3000/voice_client.html](http://localhost:3000/voice_client.html) and dashboard at [http://localhost:8000/dashboard](http://localhost:8000/dashboard)
+
+## 🧪 CLI Simulation & Testing
+
+SIVA includes a comprehensive CLI for running agent simulations and testing different scenarios using the **tau2-bench** framework.
+
+### **Basic Simulation Commands**
+
+**Run a single patient intake simulation:**
+```bash
+uv run python -m siva.cli run --domain patient_intake --agent llm_agent --user patient_intake_user_simulator --num-tasks 1 --max-steps 50
+```
+
+**Run multiple tasks for comprehensive testing:**
+```bash
+uv run python -m siva.cli run --domain patient_intake --agent llm_agent --user patient_intake_user_simulator --num-tasks 3 --max-steps 50
+```
+
+**Test different agent types:**
+TBD.
+
+### **Simulation Results**
+
+After running simulations, view results with:
+```bash
+uv run python -m siva.cli view
+```
+
+**Example Output:**
+```
+╭────────────────────────────────────────── Simulation Overview ───────────────────────────────────────────╮
+│ Task ID: patient_intake_PI001                                                                           │
+│ Trial: 0                                                                                                │
+│ Duration: 14.20s                                                                                        │
+│ Termination Reason: TerminationReason.AGENT_STOP                                                         │
+│ Agent Cost: $0.0218                                                                                     │
+│ User Cost: $0.0021                                                                                      │
+│ Reward: ✅ 1.0000 (ACTION: 1.0)                                                                         │
+│                                                                                                          │
+│ Action Checks:                                                                                          │
+│ - 0: verify_fullname ✅ 1.0                                                                              │
+│ - 1: verify_birthday ✅ 1.0                                                                              │
+│ - 2: list_prescriptions ✅ 1.0                                                                           │
+│ - 3: list_allergies ✅ 1.0                                                                               │
+│ - 4: list_conditions ✅ 1.0                                                                              │
+│ - 5: list_visit_reasons ✅ 1.0                                                                           │
+│ - 6: determine_routing ✅ 1.0                                                                            │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+```
+
+### **Available Domains & Agents**
+
+- **Domains**: `patient_intake`, `patient_intake-workflow`
+- **Agents**: `llm_agent`, `llm_agent_solo`, `llm_agent_gt`
+- **Users**: `patient_intake_user_simulator`, `dummy_user`, `user_simulator` 
 
 
 
