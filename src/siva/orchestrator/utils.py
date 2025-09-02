@@ -1,4 +1,4 @@
-from tau2.data_model.message import AssistantMessage, Message, ToolMessage
+from siva.data_model.message import AssistantMessage, Message, ToolMessage
 
 
 def is_valid_environment_message(msg: Message) -> bool:

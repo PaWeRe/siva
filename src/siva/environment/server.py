@@ -5,8 +5,8 @@ from fastapi import FastAPI, HTTPException
 from pydantic import create_model
 from typing_extensions import Annotated
 
-from tau2.environment.environment import Environment
-from tau2.environment.toolkit import get_tool_signatures
+from siva.environment.environment import Environment
+from siva.environment.toolkit import get_tool_signatures
 
 
 class EnvironmentServer:
@@ -85,7 +85,8 @@ All successful responses will return the tool's output directly. Errors will ret
                 description.append(content)
 
         # Add the tools section
-        description.append("""
+        description.append(
+            """
 
 ## Tools
 
@@ -98,7 +99,8 @@ No authentication is required for this API.
 ### Response Format
 
 All successful responses will return the tool's output directly. Errors will return a 400 status code with an error message.
-""")
+"""
+        )
 
         return "\n".join(description)
 

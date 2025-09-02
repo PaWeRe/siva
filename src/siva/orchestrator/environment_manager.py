@@ -4,11 +4,11 @@ from typing import Dict, Optional
 from fastapi import FastAPI
 from pydantic import BaseModel
 
-from tau2.data_model.message import AssistantMessage, Message, ToolCall, ToolMessage
-from tau2.data_model.tasks import Action, EnvFunctionCall, InitializationData
-from tau2.environment.environment import Environment, EnvironmentInfo
-from tau2.orchestrator.utils import is_valid_environment_message
-from tau2.registry import registry
+from siva.data_model.message import AssistantMessage, Message, ToolCall, ToolMessage
+from siva.data_model.tasks import Action, EnvFunctionCall, InitializationData
+from siva.environment.environment import Environment, EnvironmentInfo
+from siva.orchestrator.utils import is_valid_environment_message
+from siva.registry import registry
 
 
 class StartEnvironmentRequest(BaseModel):

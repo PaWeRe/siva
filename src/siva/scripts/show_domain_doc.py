@@ -6,8 +6,8 @@ import webbrowser
 
 from loguru import logger
 
-from tau2.environment.server import EnvironmentServer
-from tau2.registry import registry
+from siva.environment.server import EnvironmentServer
+from siva.registry import registry
 
 HOST = "127.0.0.1"
 PORT = 8004

@@ -1,9 +1,9 @@
 import pandas as pd
 
-from tau2.data_model.simulation import Results, RewardInfo, RewardType
-from tau2.environment.toolkit import ToolType
-from tau2.metrics.agent_metrics import is_successful
-from tau2.registry import registry
+from siva.data_model.simulation import Results, RewardInfo, RewardType
+from siva.environment.toolkit import ToolType
+from siva.metrics.agent_metrics import is_successful
+from siva.registry import registry
 
 
 def get_write_tools(domain):

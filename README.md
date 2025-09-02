@@ -35,12 +35,12 @@ SIVA includes a comprehensive CLI for running agent simulations and testing diff
 
 **Run a single patient intake simulation:**
 ```bash
-uv run python -m siva.cli run --domain patient_intake --agent llm_agent --user patient_intake_user_simulator --num-tasks 1 --max-steps 50
+uv run python -m siva.cli run --domain patient_intake --agent llm_agent --user user_simulator --num-tasks 1 --max-steps 50
 ```
 
 **Run multiple tasks for comprehensive testing:**
 ```bash
-uv run python -m siva.cli run --domain patient_intake --agent llm_agent --user patient_intake_user_simulator --num-tasks 3 --max-steps 50
+uv run python -m siva.cli run --domain patient_intake --agent llm_agent --user user_simulator --num-tasks 3 --max-steps 50
 ```
 
 **Test different agent types:**
@@ -79,7 +79,9 @@ uv run python -m siva.cli view
 
 - **Domains**: `patient_intake`, `patient_intake-workflow`
 - **Agents**: `llm_agent`, `llm_agent_solo`, `llm_agent_gt`
-- **Users**: `patient_intake_user_simulator`, `dummy_user`, `user_simulator` 
+- **Users**: `user_simulator`, `dummy_user`
+
+**Note**: SIVA uses the tau2-bench approach with LLM-based user simulators that generate responses dynamically based on task instructions, eliminating the need for hardcoded response logic. 
 
 
 

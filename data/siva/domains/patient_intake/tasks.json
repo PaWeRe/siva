@@ -11,7 +11,7 @@
       "instructions": {
         "domain": "patient_intake",
         "reason_for_call": "Annual checkup",
-        "known_info": "\n        Name: John Smith\n        Age: 35 years old\n        Reason for visit: Annual checkup\n        \nCurrent prescriptions: Lisinopril 10mg daily\nKnown allergies: Penicillin\nMedical conditions: Hypertension",
+        "known_info": "\n        Name: John Smith\n        Age: 35 years old\n        Birthday: 1990-11-04\n        Reason for visit: Annual checkup\n        \nCurrent prescriptions: Lisinopril 10mg daily\nKnown allergies: Penicillin\nMedical conditions: Hypertension",
         "unknown_info": null,
         "task_instructions": "\n        You are John Smith, a 35-year-old patient visiting Tsidi Health Services.\n        You are here for: Annual checkup\n        \n        Your communication style is: cooperative\n        \n        You should:\n        1. Respond naturally to the agent's questions\n        2. Provide the information listed in your known info when asked\n        3. Be cooperative in your communication\n        4. Answer questions about your symptoms, medications, and medical history\n        5. Cooperate with the intake process\n        "
       }
@@ -128,7 +128,7 @@
       "instructions": {
         "domain": "patient_intake",
         "reason_for_call": "Follow-up appointment",
-        "known_info": "\n        Name: Sarah Johnson\n        Age: 28 years old\n        Reason for visit: Follow-up appointment\n        ",
+        "known_info": "\n        Name: Sarah Johnson\n        Age: 28 years old\n        Birthday: 1997-01-24\n        Reason for visit: Follow-up appointment\n        ",
         "unknown_info": null,
         "task_instructions": "\n        You are Sarah Johnson, a 28-year-old patient visiting Tsidi Health Services.\n        You are here for: Follow-up appointment\n        \n        Your communication style is: cooperative\n        \n        You should:\n        1. Respond naturally to the agent's questions\n        2. Provide the information listed in your known info when asked\n        3. Be cooperative in your communication\n        4. Answer questions about your symptoms, medications, and medical history\n        5. Cooperate with the intake process\n        "
       }
@@ -209,7 +209,7 @@
       "instructions": {
         "domain": "patient_intake",
         "reason_for_call": "Cold symptoms",
-        "known_info": "\n        Name: Michael Davis\n        Age: 45 years old\n        Reason for visit: Cold symptoms\n        \nCurrent symptoms:\n- Runny nose (severity: 3/10, duration: 3 days)\n- Sore throat (severity: 4/10, duration: 2 days)\n\nKnown allergies: Peanuts",
+        "known_info": "\n        Name: Michael Davis\n        Age: 45 years old\n        Birthday: 1980-05-08\n        Reason for visit: Cold symptoms\n        \nCurrent symptoms:\n- Runny nose (severity: 3/10, duration: 3 days)\n- Sore throat (severity: 4/10, duration: 2 days)\n\nKnown allergies: Peanuts",
         "unknown_info": null,
         "task_instructions": "\n        You are Michael Davis, a 45-year-old patient visiting Tsidi Health Services.\n        You are here for: Cold symptoms\n        \n        Your communication style is: cooperative\n        \n        You should:\n        1. Respond naturally to the agent's questions\n        2. Provide the information listed in your known info when asked\n        3. Be cooperative in your communication\n        4. Answer questions about your symptoms, medications, and medical history\n        5. Cooperate with the intake process\n        "
       }

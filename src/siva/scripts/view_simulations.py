@@ -8,10 +8,10 @@ from typing import Optional
 from rich.prompt import IntPrompt, Prompt
 from rich.text import Text
 
-from tau2.data_model.simulation import Results
-from tau2.metrics.agent_metrics import compute_metrics, is_successful
-from tau2.utils.display import ConsoleDisplay
-from tau2.utils.utils import DATA_DIR
+from siva.data_model.simulation import Results
+from siva.metrics.agent_metrics import compute_metrics, is_successful
+from siva.utils.display import ConsoleDisplay
+from siva.utils.utils import DATA_DIR
 
 
 def get_available_simulations():
@@ -137,9 +137,11 @@ def save_simulation_note(
         "trial": simulation.trial,
         "duration": simulation.duration,
         "reward": simulation.reward_info.reward if simulation.reward_info else None,
-        "db_match": simulation.reward_info.db_check.db_match
-        if simulation.reward_info and simulation.reward_info.db_check
-        else None,
+        "db_match": (
+            simulation.reward_info.db_check.db_match
+            if simulation.reward_info and simulation.reward_info.db_check
+            else None
+        ),
         "results_file": results_file,
         "sim_index": sim_index,
         "note": note,

@@ -4,8 +4,8 @@ from typing import Any, Dict, Optional, Union
 import pydantic
 from pydantic import Field
 
-from tau2.environment.db import DB
-from tau2.utils.pydantic_utils import BaseModelNoExtra, update_pydantic_model_with_dict
+from siva.environment.db import DB
+from siva.utils.pydantic_utils import BaseModelNoExtra, update_pydantic_model_with_dict
 
 
 class SimStatus(str, Enum):

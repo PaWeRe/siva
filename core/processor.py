@@ -11,15 +11,15 @@ from .schemas import FUNCTION_SCHEMAS
 
 class UnifiedProcessor:
     """Main processor for handling patient conversations and routing decisions."""
-    
+
     def __init__(
-        self, 
-        session: Dict[str, Any], 
-        vector_store: VectorStore, 
+        self,
+        session: Dict[str, Any],
+        vector_store: VectorStore,
         llm_judge: LLMJudge,
         openai_client: OpenAI,
         retrieval_threshold: int = 3,
-        current_mode: str = "patient_intake"
+        current_mode: str = "patient_intake",
     ):
         self.session = session
         self.vector_store = vector_store
@@ -394,7 +394,9 @@ Use the determine_routing function to make your decision."""
             "extracted_data": extracted_data,
             "confidence": self._calculate_confidence(similar_cases, domain_evidence),
             "confidence_breakdown": {
-                "case_confidence": min(1.0, len(similar_cases) / self.retrieval_threshold),
+                "case_confidence": min(
+                    1.0, len(similar_cases) / self.retrieval_threshold
+                ),
                 "literature_confidence": min(
                     1.0, len(domain_evidence.get("evidence", [])) / 3.0
                 ),
@@ -424,7 +426,9 @@ Use the determine_routing function to make your decision."""
             "extracted_data": self.session.get("data", {}),
             "confidence": self._calculate_confidence(similar_cases, domain_evidence),
             "confidence_breakdown": {
-                "case_confidence": min(1.0, len(similar_cases) / self.retrieval_threshold),
+                "case_confidence": min(
+                    1.0, len(similar_cases) / self.retrieval_threshold
+                ),
                 "literature_confidence": min(
                     1.0, len(domain_evidence.get("evidence", [])) / 3.0
                 ),

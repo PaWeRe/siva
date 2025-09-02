@@ -1,0 +1,141 @@
+{
+  "timestamp": "2025-08-23T18:37:07.927876",
+  "info": {
+    "git_commit": "a20bced17b52b68d14733be8b81fdf42ddb81f2a",
+    "num_trials": 1,
+    "max_steps": 200,
+    "max_errors": 10,
+    "user_info": {
+      "implementation": "dummy_user",
+      "llm": "gpt-4.1",
+      "llm_args": {
+        "temperature": 0.0
+      },
+      "global_simulation_guidelines": "# User Simulation Guidelines\nYou are playing the role of a customer contacting a customer service representative. \nYour goal is to simulate realistic customer interactions while following specific scenario instructions.\n\n## Core Principles\n- Generate one message at a time, maintaining natural conversation flow.\n- Strictly follow the scenario instructions you have received.\n- Never make up or hallucinate information not provided in the scenario instructions. Information that is not provided in the scenario instructions should be considered unknown or unavailable.\n- Avoid repeating the exact instructions verbatim. Use paraphrasing and natural language to convey the same information\n- Disclose information progressively. Wait for the agent to ask for specific information before providing it.\n\n## Task Completion\n- The goal is to continue the conversation until the task is complete.\n- If the instruction goal is satisified, generate the '###STOP###' token to end the conversation.\n- If you are transferred to another agent, generate the '###TRANSFER###' token to indicate the transfer.\n- If you find yourself in a situation in which the scenario does not provide enough information for you to continue the conversation, generate the '###OUT-OF-SCOPE###' token to end the conversation.\n\nRemember: The goal is to create realistic, natural conversations while strictly adhering to the provided instructions and maintaining character consistency."
+    },
+    "agent_info": {
+      "implementation": "llm_agent_solo",
+      "llm": "gpt-4.1",
+      "llm_args": {
+        "temperature": 0.0
+      }
+    },
+    "environment_info": {
+      "domain_name": "patient_intake",
+      "policy": "# Patient Intake Policy\n\n## Overview\nYou are John, an agent for Tsidi Health Services. Your job is to collect basic information from patients before their doctor visit.\n\n## Core Responsibilities\n1. **Greet patients warmly** and introduce yourself\n2. **Collect basic information** systematically\n3. **Ask for clarification** when responses are ambiguous\n4. **Never assume or hallucinate** information\n5. **Keep responses short** and professional\n6. **Do not provide medical advice** - you're not a medical professional\n\n## Information Collection Process\n\n### Phase 1: Basic Intake\nCollect the following information in order:\n- Full name\n- Birthday\n- Current prescriptions\n- Allergies\n- Medical conditions\n- Reason for visit\n\n### Phase 2: Detailed Symptoms\nFor each symptom, collect:\n- Severity (1-10 scale)\n- Duration\n- Associated symptoms\n- Triggers\n\n### Phase 3: Routing Decision\nBased on collected information, determine appropriate care route:\n- **Emergency**: Life-threatening (severe chest pain, stroke signs, difficulty breathing)\n- **Urgent**: Serious but not life-threatening (high fever, severe pain)\n- **Routine**: Ongoing or non-urgent (mild symptoms, follow-ups)\n- **Self-care**: Minor issues (cold, mild headache)\n- **Information**: Questions about medication or prevention\n\n## Communication Guidelines\n- Address patients by their first name\n- Be polite and professional\n- Use function calls to store information as you collect it\n- Ask one question at a time\n- Provide clear explanations for why you need each piece of information\n\n## Escalation Criteria\nEscalate to human agent if:\n- Patient requests human assistance\n- Complex medical questions beyond your scope\n- Patient appears distressed or confused\n- Technical issues prevent proper information collection\n",
+      "tool_defs": null
+    },
+    "seed": 300
+  },
+  "tasks": [
+    {
+      "id": "[mobile_data_issue]data_mode_off|data_usage_exceeded[PERSONA:None]",
+      "description": {
+        "purpose": "Test resolution path: Mobile Data/Slow Internet Issues.",
+        "relevant_policies": null,
+        "notes": null
+      },
+      "user_scenario": {
+        "persona": null,
+        "instructions": {
+          "domain": "telecom",
+          "reason_for_call": "You mobile data is not working properly. It either stops working or is very slow. You want to fix it and absolutely want to get excellent internet speed on your phone. You are not willing to accept any other internet speed (poor, fair or good). You do not have access to wifi.",
+          "known_info": "You are John Smith with phone number 555-123-2002. You are currently at home in the United States.",
+          "unknown_info": null,
+          "task_instructions": "If the agent suggests actions that don't immediately fix the issue, follow their guidance but express mild frustration after the first unsuccessful attempt. You will consider the issue resolved only when speed test returns excellent internet speed and nothing else. If it returns poor, fair or good, you will not consider the issue resolved. You are willing to refuel 2.0 GB of data if necessary, but you do not want to change your mobile data plan. If the tool call does not return updated status information, you might need to perform another tool call to get the updated status. \nWhenever the agent asks you about your device, always ground your responses on the results of tool calls. \nFor example: If the agent asks what the status bar shows, always ground your response on the results of the `get_status_bar` tool call. If the agent asks if you are able to send an MMS message, always ground your response on the results of the `can_send_mms` tool call.\nNever make up the results of tool calls, always ground your responses on the results of tool calls.\nIf you are unsure about whether an action is necessary, always ask the agent for clarification.\n"
+        }
+      },
+      "ticket": "The user is experiencing issues with their mobile data. They are unable to use their phone to browse the internet, and the status bar shows 'No Service'. Customer name: John Smith, phone number: 555-123-2002, current location: at home in the United States. They will consider the issue resolved when speed test returns excellent internet speed. They will not change their mobile data plan but they will refuel 2.0 GB of data if necessary.",
+      "initial_state": {
+        "initialization_data": null,
+        "initialization_actions": [
+          {
+            "env_type": "user",
+            "func_name": "set_user_info",
+            "arguments": {
+              "name": "John Smith",
+              "phone_number": "555-123-2002"
+            }
+          },
+          {
+            "env_type": "user",
+            "func_name": "turn_data_off",
+            "arguments": {}
+          },
+          {
+            "env_type": "assistant",
+            "func_name": "set_data_usage",
+            "arguments": {
+              "customer_id": "C1001",
+              "line_id": "L1002",
+              "data_used_gb": 15.1
+            }
+          }
+        ],
+        "message_history": null
+      },
+      "evaluation_criteria": {
+        "actions": [
+          {
+            "action_id": "toggle_data_0",
+            "requestor": "user",
+            "name": "toggle_data",
+            "arguments": {},
+            "info": null,
+            "compare_args": null
+          },
+          {
+            "action_id": "refuel_data_1",
+            "requestor": "assistant",
+            "name": "refuel_data",
+            "arguments": {
+              "customer_id": "C1001",
+              "line_id": "L1002",
+              "gb_amount": 2.0
+            },
+            "info": null,
+            "compare_args": null
+          }
+        ],
+        "env_assertions": [
+          {
+            "env_type": "user",
+            "func_name": "assert_mobile_data_status",
+            "arguments": {
+              "expected_status": true
+            },
+            "assert_value": true,
+            "message": null
+          },
+          {
+            "env_type": "user",
+            "func_name": "assert_internet_speed",
+            "arguments": {
+              "expected_speed": 200,
+              "expected_desc": "excellent"
+            },
+            "assert_value": true,
+            "message": null
+          },
+          {
+            "env_type": "assistant",
+            "func_name": "assert_data_refueling_amount",
+            "arguments": {
+              "customer_id": "C1001",
+              "line_id": "L1002",
+              "expected_amount": 2.0
+            },
+            "assert_value": true,
+            "message": null
+          }
+        ],
+        "communicate_info": null,
+        "nl_assertions": null,
+        "reward_basis": [
+          "ENV_ASSERTION"
+        ]
+      }
+    }
+  ],
+  "simulations": []
+}

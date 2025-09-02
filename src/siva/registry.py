@@ -26,7 +26,6 @@ from siva.domains.patient_intake.environment import (
 from siva.environment.environment import Environment
 from siva.user.base import BaseUser
 from siva.user.user_simulator import DummyUser, UserSimulator
-from siva.user.patient_intake_user_simulator import PatientIntakeUserSimulator
 
 
 class RegistryInfo(BaseModel):
@@ -168,7 +167,7 @@ try:
     logger.debug("Registering default components...")
     registry.register_user(UserSimulator, "user_simulator")
     registry.register_user(DummyUser, "dummy_user")
-    registry.register_user(PatientIntakeUserSimulator, "patient_intake_user_simulator")
+
     registry.register_agent(LLMAgent, "llm_agent")
     registry.register_agent(LLMGTAgent, "llm_agent_gt")
     registry.register_agent(LLMSoloAgent, "llm_agent_solo")

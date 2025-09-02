@@ -8,15 +8,15 @@ from rich.panel import Panel
 from rich.prompt import Prompt
 from rich.theme import Theme
 
-from tau2.config import DEFAULT_LLM_ENV_INTERFACE, DEFAULT_LLM_ENV_INTERFACE_ARGS
-from tau2.data_model.message import (
+from siva.config import DEFAULT_LLM_ENV_INTERFACE, DEFAULT_LLM_ENV_INTERFACE_ARGS
+from siva.data_model.message import (
     AssistantMessage,
     Message,
     SystemMessage,
     UserMessage,
 )
-from tau2.environment.environment import Environment
-from tau2.utils.llm_utils import generate
+from siva.environment.environment import Environment
+from siva.utils.llm_utils import generate
 
 SYSTEM_PROMPT = """
 # Instruction
@@ -108,7 +108,7 @@ def main():
         :d - change domain
         :n - start new session
     """
-    from tau2.registry import registry
+    from siva.registry import registry
 
     # Setup rich console with custom theme
     theme = Theme(
